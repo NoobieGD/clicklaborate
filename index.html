@@ -585,7 +585,7 @@ let fxRates={EUR:1};
 let fxLoadedAt=0;
 let appCheckReady=false;
 
-const APP_VERSION="1.5.9.1";
+const APP_VERSION="1.5.9.2";
 const REPO_RAW_URL="https://raw.githubusercontent.com/NoobieGD/clicklaborate/main/index.html";
 let repoLocked=false;
 let repoCheckInFlight=null;
@@ -662,7 +662,9 @@ function effectData(){
   for(const d of U){
     const lv=num(game.upgrades?.[d[0]]),k=d[5],a=num(d[6]);
     if(!lv)continue;
-    if(k in e)e[k]+=lv*a*UPGRADE_EFFECT_SCALE;
+    if(!(k in e))continue;
+    // Direct click power is a real per-click amount; other effects keep the economy nerf.
+    e[k]+=lv*a*(k==="clickPower"?1:UPGRADE_EFFECT_SCALE);
   }
   return e;
 }
@@ -1017,7 +1019,7 @@ async function seedMilestones(){
 
 function upgradeEffectText(d,level){
   const k=d[5],a=num(d[6]),next=level+1;
-  if(k==="clickPower")return `+${fmt(a*next)} extra per click`;
+  if(k==="clickPower")return `+${fmt(a*next)} clicks per click`;
     if(k==="combo")return `+${(a*100).toFixed(1)}% combo bonus per 2 combo`;
       if(k==="crit")return `+${(a*100).toFixed(1)}% chance to crit`;
   if(k==="group")return `+${(a*100).toFixed(1)}% per online player`;
