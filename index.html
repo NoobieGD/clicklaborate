@@ -242,7 +242,7 @@ button:disabled{cursor:not-allowed;opacity:.42}
 </style>
 </head>
 <body>
-<div class="version-label" aria-hidden="true">v1.7.1</div>
+<div class="version-label" aria-hidden="true">v1.7.3</div>
 <div id="repoLock" class="repo-lock" aria-hidden="true"><div class="repo-lock-card"><div class="repo-lock-title">Outdated build</div><div id="repoLockText" class="repo-lock-text">This page is not the current repository build.</div><div id="repoLockBuild" class="repo-lock-build"></div></div></div>
 
 <div id="joinModal" class="modal show">
@@ -552,6 +552,8 @@ let fnPropose=null;
 let fnVote=null;
 let fnChat=null;
 let uid="";
+let playerUid=localStorage.getItem("clicklaborate_player_uid")||(crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random().toString(16).slice(2)}`);
+localStorage.setItem("clicklaborate_player_uid",playerUid);
 let name=localStorage.getItem("clicklaborate_name")||"";
 
 let game={
@@ -594,7 +596,7 @@ let fxRates={EUR:1};
 let fxLoadedAt=0;
 let appCheckReady=false;
 
-const APP_VERSION="1.7.1";
+const APP_VERSION="1.7.3";
 const GITHUB_RAW_INDEX_URL="https://raw.githubusercontent.com/NoobieGD/clicklaborate/main/index.html";
 let repoLocked=false;
 let repoCheckInFlight=null;
@@ -657,11 +659,12 @@ async function apiRequest(path,payload={}){
   const fn=map[path];
   if(!fn)throw new Error(`Unknown backend endpoint: ${path}`);
   try{
-    // The backend's game state (leaderboard rows, proposal voters, per-user
-    // cps) is keyed by our persistent player uid, not the raw Firebase Auth
-    // uid that httpsCallable attaches automatically as context.auth.uid.
-    // Send it explicitly so every call gets attributed to the right row.
-    const result=await fn({...payload,uid,name});
+    // `uid` is our own Firebase Auth uid (required for the callable's auth
+    // context). `playerUid` is a separate, stable per-browser id kept in
+    // localStorage in case the backend wants to reconcile this browser across
+    // auth-uid changes — purely additive, never used as a client-side RTDB
+    // path key (that's restricted to `uid` by the database rules).
+    const result=await fn({...payload,uid,playerUid,name});
     return result?.data||{};
   }catch(err){
     throw apiError(err);
@@ -1363,7 +1366,7 @@ async function initPresence(){
   setInterval(()=>update(p,{name,uid,online:true,lastSeen:now()}),3000);
 }
 
-// YouTube polling is server-side in v1.7.1. The browser only reads /youtube/source and /superChats/events.
+// YouTube polling is server-side in v1.7.3. The browser only reads /youtube/source and /superChats/events.
 function youtubeRequest(){ throw new Error("YOUTUBE_SERVER_ONLY"); }
 
 function chatOrderValue(m){
@@ -1632,22 +1635,25 @@ async function start(){
     }
     db=getDatabase(app);
     const authUid=auth.currentUser.uid;
-    // IMPORTANT: `presence`, `leaderboard/users`, and `proposal.voters` are all
-    // keyed by a persistent per-browser UUID (see `profiles/{uid}.uid`), which
-    // is a *different* identity than the Firebase anonymous-auth uid
-    // (`profiles/{uid}.authUid`). Using authUid as the player identity — like
-    // this used to — writes every session's activity under an id the rest of
-    // the game (leaderboards, live CPS tracking, vote records) never
-    // recognizes, so a returning player's stats never accumulate onto their
-    // real leaderboard row and always look "stuck".
-    uid=localStorage.getItem("clicklaborate_uid")||(crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random().toString(16).slice(2)}`);
-    localStorage.setItem("clicklaborate_uid",uid);
-    const profileRef=ref(db,`profiles/${firebaseSafeKey(uid)}`);
+    // Database security rules require writes to `profiles/$uid` (and, from the
+    // permission_denied this raised, almost certainly `presence/$uid` too) to
+    // satisfy `$uid === auth.uid`. A previous build tried keying these by a
+    // separate self-generated persistent UUID to match what the exported data
+    // showed for OTHER records (leaderboard/proposal), but that write is only
+    // reachable by the backend's Cloud Functions (which use the Admin SDK and
+    // bypass these rules) — the client itself has to write under its own
+    // authUid. Reverting to that so the app can actually start again.
+    uid=authUid;
+    // We still keep a stable local player id around (separate from uid) purely
+    // so it can be sent alongside API calls in case the backend wants to use it
+    // for reconciling this browser across auth-uid changes; it is never used
+    // as a database path key from the client.
+    const profileRef=ref(db,`profiles/${firebaseSafeKey(authUid)}`);
     const profileSnap=await get(profileRef);
     if(!profileSnap.exists()){
-      await set(profileRef,{uid,authUid,name:cleanName(name)||"Anonymous",updatedAt:now()});
+      await set(profileRef,{uid:authUid,name:cleanName(name)||"Anonymous"});
     }else if(name){
-      await update(profileRef,{name,authUid,updatedAt:now()});
+      await update(profileRef,{name,uid:authUid});
     }else{
       name=String(profileSnap.val()?.name||"");
       if(name)localStorage.setItem("clicklaborate_name",name);
