@@ -403,9 +403,8 @@ import {getDatabase,ref,onValue,set,update,push,get,runTransaction,onDisconnect}
 import {getAuth,signInAnonymously} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 import {initializeAppCheck,ReCaptchaV3Provider,getToken as getAppCheckToken} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app-check.js";
 
-const decodeKey=a=>String.fromCharCode(...a);
 const firebaseConfig={
-  apiKey:decodeKey([65,73,122,97,83,121,68,85,116,117,70,97,56,97,115,76,49,120,71,98,84,75,118,117,57,115,45,51,67,117,82,79,68,66,70,66,118,89]),
+  apiKey:"AIzaSyDUtuFa86asL1xGbTKvu9s-3CguRODFBvY",
   authDomain:"pixel-propbo-s-canvas.firebaseapp.com",
   databaseURL:"https://pixel-propbo-s-canvas-default-rtdb.firebaseio.com",
   projectId:"pixel-propbo-s-canvas",
@@ -414,8 +413,8 @@ const firebaseConfig={
   appId:"1:154237870577:web:aa5f24145d00e9c8502450"
 };
 
-const YOUTUBE_API_KEY=decodeKey([65,73,122,97,83,121,68,66,72,45,82,77,121,80,98,49,78,52,118,116,84,68,110,113,108,57,45,97,105,51,95,56,109,111,69,117,70,89]);
-const APP_CHECK_KEY=decodeKey([54,76,102,78,76,112,81,116,65,65,65,65,65,76,69,70,101,66,80,81,48,122,97,57,88,115,53,106,57,52,76,83,100,50,78,53,78,119]);
+const YOUTUBE_API_KEY="AIzaSyDBH-RMyPb1N4vtTDnql9i-ai3_8moEuFY";
+const APP_CHECK_KEY="6LfNLpQtAAAAALEFeyBPQ0zXa99Xs5j94LSd2N5w";
 const CLICK_PER_CURRENCY_UNIT=1000;
 const VOTE_SECONDS=30;
 const POLLER_LEASE_MS=14000;
@@ -1368,6 +1367,12 @@ async function start(){
     });
     await initPresence();
     console.info(tag,"presence ok");
+    const ytSourceRef=ref(db,"youtube/source");
+    const ytSourceSnap=await get(ytSourceRef);
+    if(!ytSourceSnap.exists()){
+      await set(ytSourceRef,{streamUrl:"",liveChatId:"",pageToken:"",lastPoll:0});
+      console.info(tag,"created youtube/source");
+    }
     const stateSnap=await get(ref(db,"game"));
     console.info(tag,"game read ok",stateSnap.exists()?"game exists":"game missing");
     if(!stateSnap.exists()){
