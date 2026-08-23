@@ -241,7 +241,7 @@ button:disabled{cursor:not-allowed;opacity:.42}
 </style>
 </head>
 <body>
-<div class="version-label" aria-hidden="true">v1.6</div>
+<div class="version-label" aria-hidden="true">v1.7</div>
 <div id="repoLock" class="repo-lock" aria-hidden="true"><div class="repo-lock-card"><div class="repo-lock-title">Outdated build</div><div id="repoLockText" class="repo-lock-text">This page is not the current repository build.</div><div id="repoLockBuild" class="repo-lock-build"></div></div></div>
 
 <div id="joinModal" class="modal show">
@@ -446,8 +446,9 @@ button:disabled{cursor:not-allowed;opacity:.42}
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
 import {getDatabase,ref,onValue,set,update,push,get,runTransaction,onDisconnect,query,orderByChild,limitToLast,remove,onChildAdded,onChildChanged,onChildRemoved,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-database.js";
-import {getAuth,signInAnonymously,setPersistence,browserLocalPersistence} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
+import {getAuth,signInAnonymously,setPersistence,browserLocalPersistence,onAuthStateChanged} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 import {initializeAppCheck,ReCaptchaEnterpriseProvider,getToken as getAppCheckToken} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app-check.js";
+import {getFunctions,httpsCallable} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-functions.js";
 
 const firebaseConfig={
   apiKey:"AIzaSyDUtuFa86asL1xGbTKvu9s-3CguRODFBvY",
@@ -459,7 +460,7 @@ const firebaseConfig={
   appId:"1:154237870577:web:aa5f24145d00e9c8502450"
 };
 
-const YOUTUBE_API_KEY="AIzaSyDBH-RMyPb1N4vtTDnql9i-ai3_8moEuFY";
+const YOUTUBE_API_KEY=""; // server-side only // YouTube polling must be server-side.
 const APP_CHECK_KEY="6LfNLpQtAAAAALEFeyBPQ0zXa99Xs5j94LSd2N5w";
 const CLICK_PER_CURRENCY_UNIT=1000;
 const VOTE_SECONDS=30;
@@ -543,9 +544,13 @@ const U=[
 
 let db=null;
 let auth=null;
-let uid=localStorage.getItem("clicklaborate_uid")||crypto.randomUUID();
-let name=localStorage.getItem("clicklaborate_name")||"";
-localStorage.setItem("clicklaborate_uid",uid);
+let functions=null;
+let fnClick=null;
+let fnPropose=null;
+let fnVote=null;
+let fnChat=null;
+let uid="";
+let name="";
 
 let game={
   globalClicks:0,totalGenerated:0,rawClicks:0,rawGenerated:0,supportClicks:0,peakCps:0,peakCpsAt:0,
@@ -586,7 +591,7 @@ let fxRates={EUR:1};
 let fxLoadedAt=0;
 let appCheckReady=false;
 
-const APP_VERSION="1.6";
+const APP_VERSION="1.7";
 const GITHUB_COMMITS_URL="https://api.github.com/repos/NoobieGD/clicklaborate/commits/main";
 let repoLocked=false;
 let repoCheckInFlight=null;
@@ -634,7 +639,34 @@ const num=v=>Number(v||0);
 const fmt=v=>Math.floor(num(v)).toLocaleString("en-US");
 const money=(v,c="")=>`${c?c+" ":""}${num(v).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
 const now=()=>Date.now();
+
 const sec=()=>Math.floor(Date.now()/1000);
+
+function apiError(error){
+  const e=new Error(error?.message||"Request failed.");
+  e.code=error?.code||"functions/unknown";
+  e.status=error?.code==="functions/resource-exhausted"?429:0;
+  return e;
+}
+
+async function apiRequest(path,payload={}){
+  if(!functions)throw new Error("Backend is not initialized.");
+  const map={
+    "/api/click":fnClick,
+    "/api/proposals":fnPropose,
+    "/api/vote":fnVote,
+    "/api/chat":fnChat
+  };
+  const fn=map[path];
+  if(!fn)throw new Error(`Unknown backend endpoint: ${path}`);
+  try{
+    const result=await fn(payload);
+    return result?.data||{};
+  }catch(err){
+    throw apiError(err);
+  }
+}
+
 
 function toast(text){
   el("toast").textContent=text;
@@ -979,46 +1011,7 @@ function milestoneBonusCount(){
 }
 
 async function seedMilestones(){
-  if(!db)return;
-  const globalSeed={};
-  const generatedSeed={};
-  const rawSeed={};
-  for(const n of GLOBAL_MILESTONES){
-    const who=MILESTONE_USERS[n];
-    if(who)globalSeed[n]={name:who,uid:"",at:0,seeded:true};
-  }
-  const rawSeedNames=["Alex","Liam","Mar","Duckywys","clovis","ZoinkGMD","CALAMITY","Liam777","yuri is good","pixel","sam","max","jay","noah","kai","milo","nova","ben","leo","ryan","zane","matt","lucas"];
-  for(const n of RAW_MILESTONES){
-    if(n<=2000000){
-      const idx=Math.abs(Math.floor(Math.sin(n*12.9898)*43758.5453))%rawSeedNames.length;
-      rawSeed[n]={name:rawSeedNames[idx],uid:"",at:0,seeded:true};
-    }
-  }
-  for(const n of GENERATED_MILESTONES){
-    const who=MILESTONE_USERS[n];
-    if(who)generatedSeed[n]={name:who,uid:"",at:0,seeded:true};
-  }
-  await Promise.all([
-    runTransaction(ref(db,"milestones/global"),cur=>{
-      cur=cur||{};
-      for(const [n,row] of Object.entries(globalSeed))if(!cur[n])cur[n]=row;
-      return cur;
-    }).catch(err=>console.error("[Clicklaborate Milestones] global seed failed",{code:err?.code,message:err?.message,error:err})),
-    runTransaction(ref(db,"milestones/generated"),cur=>{
-      cur=cur||{};
-      for(const [n,row] of Object.entries(generatedSeed))if(!cur[n])cur[n]=row;
-      return cur;
-    }).catch(err=>console.error("[Clicklaborate Milestones] generated seed failed",{code:err?.code,message:err?.message,error:err})),
-    runTransaction(ref(db,"milestones/raw"),cur=>{
-      cur=cur||{};
-      for(const [n,row] of Object.entries(cur)){
-        const milestone=Number(n);
-        if(milestone>2000000 && row?.seeded)delete cur[n];
-      }
-      for(const [n,row] of Object.entries(rawSeed))if(!cur[n])cur[n]=row;
-      return cur;
-    }).catch(err=>console.error("[Clicklaborate Milestones] raw seed failed",{code:err?.code,message:err?.message,error:err}))
-  ]);
+  // server-owned
 }
 
 function upgradeEffectText(d,level){
@@ -1212,73 +1205,13 @@ function renderHome(){
   updateSmallNumber("topCps",currentCps);
 }
 
-async function awardMilestones(beforeGlobal,afterGlobal,beforeGenerated,afterGenerated,beforeRaw,afterRaw){
-  const paths=[["global",beforeGlobal,afterGlobal,GLOBAL_MILESTONES],["generated",beforeGenerated,afterGenerated,GENERATED_MILESTONES],["raw",beforeRaw,afterRaw,RAW_MILESTONES]];
-  for(const [kind,before,after,list] of paths){
-    for(const n of list){
-      if(num(before)<n&&num(after)>=n){
-        await runTransaction(ref(db,`milestones/${kind}/${n}`),cur=>cur?cur:{name,uid,at:serverNow(),source:"reached"}).catch(err=>console.error(`[Clicklaborate Milestones] ${kind} award failed`,{code:err?.code,message:err?.message,error:err}));
-      }
-    }
-  }
+async function awardMilestones(){
+  // server-owned
 }
 
-async function generateClicks(amount,rawDelta=0){
-  if(!db||!amount)return;
-  let beforeGlobal=0,afterGlobal=0,beforeGenerated=0,afterGenerated=0,beforeRaw=0,afterRaw=0;
-  const tx=await runTransaction(ref(db,"game"),cur=>{
-    cur=cur||{};
-    beforeGlobal=num(cur.globalClicks);
-    beforeGenerated=num(cur.totalGenerated);
-    beforeRaw=num(cur.rawClicks);
-    afterGlobal=beforeGlobal+num(amount);
-    afterGenerated=beforeGenerated+num(amount);
-    afterRaw=beforeRaw+num(rawDelta);
-    cur.globalClicks=afterGlobal;
-    cur.totalGenerated=afterGenerated;
-    cur.rawClicks=afterRaw;
-    if(rawDelta>0)cur.rawGenerated=num(cur.rawGenerated)+num(amount);
-    if(rawDelta>0){
-      const active=(now()-num(cur.lastRawAt))<1000;
-      cur.combo=active?num(cur.combo)+num(rawDelta):num(rawDelta);
-      cur.lastRawAt=now();
-    }
-    return cur;
-  });
-  if(tx.committed){
-    const currentSecond=serverSec();
-    await runTransaction(ref(db,`leaderboard/users/${firebaseSafeKey(uid)}`),cur=>{
-      cur=cur||{};
-      const prevSecond=num(cur.currentSecond);
-      const prevAmount=num(cur.currentSecondClicks);
-      return {
-        ...cur,uid,name,
-        totalClicks:num(cur.totalClicks)+num(amount),
-        currentSecond,
-        currentSecondClicks:prevSecond===currentSecond?prevAmount+num(amount):num(amount),
-        cps:prevSecond===currentSecond?num(cur.cps):prevAmount,
-        lastActive:Date.now()
-      };
-    }).catch(err=>console.error("[Clicklaborate Leaderboard] contribution write failed",{code:err?.code,message:err?.message,error:err}));
-    await awardMilestones(beforeGlobal,afterGlobal,beforeGenerated,afterGenerated,beforeRaw,afterRaw);
-    await runTransaction(ref(db,`seconds/${currentSecond}`),v=>{
-      v=v||{};
-      v.cps=num(v.cps)+num(amount);
-      v.at=currentSecond;
-      return v;
-    }).then(tx=>{
-      if(tx?.committed){
-        const value=num(tx.snapshot?.val()?.cps);
-        const found=seconds.find(x=>num(x.second)===currentSecond);
-        if(found)found.cps=value;
-        else seconds.push({second:currentSecond,cps:value,at:currentSecond});
-        seconds=seconds.slice().sort((a,b)=>num(a.second)-num(b.second)).slice(-60);
-      }
-    }).catch(err=>{
-      console.error("[Clicklaborate CPS] second write failed",{code:err?.code,message:err?.message,error:err});
-    });
-    refreshCps();
-  }
+async function generateClicks(rawDelta=0){
+  if(!rawDelta)return null;
+  return apiRequest("/api/click",{rawClicks:Math.max(1,Math.floor(num(rawDelta)))});
 }
 
 function queueClick(){
@@ -1291,67 +1224,22 @@ function queueClick(){
 }
 
 async function flushClicks(){
-  if(flushBusy||!db||queuedRaw<=0)return;
+  if(flushBusy||queuedRaw<=0||!auth?.currentUser)return;
   flushBusy=true;
-  const raw=queuedRaw;
-  queuedRaw=0;
-  const e=effectData();
-  const comboLevel=currentCombo();
-  const recentClicks=pruneLocalClicks().length;
-  const recentSuperChats=Object.keys(superChats||{}).length;
-  const sessionMinutes=Math.min(60,Math.max(0,(now()-num(sessionStart))/60000));
-  const gapSinceClick=localClicks.length?now()-localClicks[localClicks.length-1]:Infinity;
-
-  let mult=1;
-  mult*=1+e.clickMult+e.globalMult+e.final+e.lastResort;
-  mult*=1+(Math.max(0,activeUsers()-1))*(e.group+e.crowd+e.sharedBattery);
-  mult*=1+e.combo*Math.min(30,Math.floor(comboLevel/3));
-  mult*=1+e.chain*Math.min(30,Math.floor(comboLevel/3));
-  mult*=1+e.milestoneMult*milestoneBonusCount();
-  mult*=1+e.sideways;
-  mult*=1+e.refund;
-  mult*=1+e.rawBoost;
-  mult*=1+e.superchatBonus*recentSuperChats;
-  mult*=1+e.time*sessionMinutes+e.uptime*sessionMinutes;
-
-  if(recentClicks>=10)mult*=1+e.heat;
-
-  // Returning after a pause gets the described return burst.
-  if(gapSinceClick>=3000)mult*=1+e.idleBurst;
-
-  // A combo reset triggers the described comeback bonus.
-  if(comboLevel===0&&raw>0)mult*=1+e.backspace;
-
-  // Burst upgrades now actually have a chance to trigger.
-  if(Math.random()<Math.min(0.5,e.burst))mult*=1+e.burst;
-
-  // Panic is an explicit rare surge.
-  if(Math.random()<Math.min(0.5,e.panic))mult*=8;
-
-  // Crit and double-click are explicit chance-based effects.
-  if(Math.random()<Math.min(0.5,e.crit))mult*=2;
-  if(Math.random()<Math.min(0.5,e.double))mult*=2;
-
-  const generated=Math.max(raw,Math.round(raw*(1+e.clickPower)*mult));
+  const raw=queuedRaw; queuedRaw=0;
   try{
-    await generateClicks(generated,raw);
-    localContribution.push({at:now(),amount:generated});
+    const result=await generateClicks(raw);
+    if(result?.game){Object.assign(game,result.game);rollTarget=num(game.globalClicks);}
+    if(result?.rawClicks!=null)localClicksTotal=num(result.rawClicks);
+    localContribution.push({at:now(),amount:num(result?.generated??raw)});
     renderHome();
   }catch(err){
     queuedRaw+=raw;
-    console.error("[Clicklaborate Multiplayer] click sync failed",{
-      path:"game",
-      code:err?.code,
-      message:err?.message,
-      authUid:auth?.currentUser?.uid||null,
-      appCheckReady:!!appCheckReady,
-      error:err
-    });
-    if(err?.code==="PERMISSION_DENIED")toast("Firebase blocked the global click write. Check Realtime Database Rules.");
-    else toast("Global click sync failed. Check the console.");
+    console.error("[Clicklaborate API] click failed",{code:err?.code,status:err?.status,message:err?.message,error:err});
+    toast(err?.status===429?"You're clicking too quickly.":"Click failed. Try again.");
   }finally{
     flushBusy=false;
-    if(queuedRaw>0&&!flushTimer)flushTimer=setTimeout(()=>{flushTimer=0;flushClicks()},60);
+    if(queuedRaw>0&&!flushTimer)flushTimer=setTimeout(()=>{flushTimer=0;flushClicks()},100);
   }
 }
 
@@ -1361,192 +1249,22 @@ function firebaseSafeKey(value){
 }
 
 async function proposeUpgrade(id){
-  const d=U.find(x=>x[0]===id);
-  if(!d)return;
-  if(activeUsers()<3){toast("At least 3 people need to be online.");return}
-  let storedCooldown=0;
-  try{
-    const currentSnap=await get(ref(db,"proposal/current"));
-    const currentData=currentSnap.val()||{};
-    storedCooldown=num(currentData.cooldowns?.[firebaseSafeKey(uid)]);
-  }catch(err){
-    console.error("[Clicklaborate Vote] cooldown read failed",{code:err?.code,message:err?.message,error:err});
-  }
-  proposalCooldownUntil=Math.max(proposalCooldownUntil,storedCooldown);
-  const cooldownLeft=Math.max(0,proposalCooldownUntil-num(serverNow()));
-  if(cooldownLeft>0){toast(`You need to wait ${Math.ceil(cooldownLeft/1000)}s before proposing another upgrade.`);return}
-  if(proposal?.active){toast("There is already a vote running.");return}
-  const level=num(game.upgrades?.[id]);
-  const cost=authoritativeUpgradeCost(id,level);
-  if(num(game.globalClicks)<cost){toast("Not enough clicks.");return}
-  const pRef=ref(db,"proposal/current");
-  const proposalId=crypto.randomUUID();
-  try{
-    const tx=await runTransaction(pRef,cur=>{
-      if(cur?.active)return cur;
-      const cooldowns=cur?.cooldowns||{};
-      return {id:proposalId,active:true,locked:true,cancelable:false,upgradeId:id,cost,yes:0,no:0,voters:{},cooldowns,startedBy:name,startedByUid:uid,startedAt:now(),endsAt:now()+VOTE_SECONDS*1000};
-    });
-    const saved=tx.snapshot?.val?.()||null;
-    if(!tx.committed||saved?.id!==proposalId){toast("A vote is already running.");return}
-    proposal=saved;
-    renderProposal();
-    toast("Vote opened.");
-  }catch(err){
-    console.error("[Clicklaborate Vote] proposal create failed",{code:err?.code,message:err?.message,error:err});
-    toast(err?.code==="PERMISSION_DENIED"?"Firebase blocked the vote. Check proposal rules.":"Could not start vote.");
-  }
+  if(!U.find(x=>x[0]===id))return;
+  if(activeUsers()<3){toast("At least 3 people need to be online.");return;}
+  if(proposal?.active){toast("There is already a vote running.");return;}
+  try{const r=await apiRequest("/api/proposals",{upgradeId:id});if(r?.proposal){proposal=r.proposal;renderProposal();toast("Vote opened.");}}
+  catch(err){console.error("[Clicklaborate API] proposal failed",err);toast(err?.message||"Could not start vote.");}
 }
 
 async function castVote(choice){
-  if(choice!=="yes"&&choice!=="no")return;
-  const voteKey=firebaseSafeKey(uid);
-  if(!proposal?.active||proposal.voters?.[voteKey])return;
-  try{
-    const tx=await runTransaction(ref(db,"proposal/current"),cur=>{
-      if(!cur?.active||cur.cancelable===true)return cur;
-      if(num(cur.endsAt)<=now())return cur;
-      cur.voters=cur.voters||{};
-      const voteKey=firebaseSafeKey(uid);
-      if(cur.voters[voteKey])return cur;
-      cur.voters[voteKey]=choice;
-      const voteWeight=1+Math.max(0,num(effectData().vote));
-      cur[choice]=num(cur[choice])+voteWeight;
-      cur.active=true;
-      cur.locked=true;
-      cur.cancelable=false;
-      return cur;
-    });
-    if(!tx.committed){toast("Vote could not be recorded.");return}
-    proposal=tx.snapshot?.val?.()||proposal;
-    renderProposal();
-  }catch(err){
-    console.error("[Clicklaborate Vote] vote failed",{code:err?.code,message:err?.message,error:err});
-    toast(err?.code==="PERMISSION_DENIED"?"Firebase blocked the vote. Check proposal rules.":"Vote failed.");
-  }
+  if(!["yes","no"].includes(choice)||!proposal?.active)return;
+  try{const r=await apiRequest("/api/vote",{choice});if(r?.proposal){proposal=r.proposal;renderProposal();}}
+  catch(err){console.error("[Clicklaborate API] vote failed",err);toast(err?.message||"Vote failed.");}
 }
 
 let finishingProposal=false;
 async function finishProposal(){
-  if(finishingProposal)return;
-  const current=proposal;
-  if(!current?.active||num(current.endsAt)>now())return;
-  finishingProposal=true;
-  const pRef=ref(db,"proposal/current");
-
-  try{
-    const offset=serverTimeOffset;
-    const sharedNow=Date.now()+offset;
-    if(sharedNow<num(current.endsAt))return;
-
-    let claim=null;
-    for(let attempt=0;attempt<3;attempt++){
-      try{
-        claim=await runTransaction(pRef,cur=>{
-          if(!cur?.active||cur.id!==current.id||cur.cancelable===true)return cur;
-          const t=Date.now()+offset;
-          if(t<num(cur.endsAt))return cur;
-          if(cur.finishingBy&&num(cur.finishingUntil)>t&&cur.finishingBy!==uid)return cur;
-          return {...cur,finishingBy:uid,finishingUntil:t+8000};
-        });
-        break;
-      }catch(err){
-        if(err?.message!=="maxretry")throw err;
-        await new Promise(r=>setTimeout(r,250*(attempt+1)));
-      }
-    }
-
-    if(!claim?.committed)return;
-
-    const claimed=claim.snapshot?.val?.();
-    if(!claimed||claimed.finishingBy!==uid)return;
-
-    let decision=null;
-    for(let attempt=0;attempt<3;attempt++){
-      try{
-        decision=await runTransaction(pRef,cur=>{
-          if(!cur?.active||cur.id!==current.id||cur.finishingBy!==uid)return cur;
-          const t=Date.now()+offset;
-          if(t<num(cur.endsAt))return cur;
-          const yes=num(cur.yes),no=num(cur.no);
-          const passed=yes>no;
-          const cooldowns={...(cur.cooldowns||{})};
-          const proposerKey=firebaseSafeKey(cur.startedByUid||"");
-          if(proposerKey)cooldowns[proposerKey]=t+60000;
-          return {
-            ...cur,
-            active:false,
-            locked:true,
-            cancelable:false,
-            resolved:true,
-            passed,
-            tie:yes===no,
-            resolvedAt:t,
-            cooldownUntil:t+60000,
-            cooldowns,
-            finishingBy:null,
-            finishingUntil:null
-          };
-        });
-        break;
-      }catch(err){
-        if(err?.message!=="maxretry")throw err;
-        await new Promise(r=>setTimeout(r,250*(attempt+1)));
-      }
-    }
-
-    if(!decision?.committed)return;
-
-    const decided=decision.snapshot?.val?.();
-    if(!decided)return;
-
-    const proposerUid=typeof decided.startedByUid==="string" ? decided.startedByUid.trim() : "";
-    const until=num(decided.cooldowns?.[firebaseSafeKey(proposerUid)])||num(decided.cooldownUntil)||sharedNow+60000;
-    if(proposerUid===uid)proposalCooldownUntil=Math.max(proposalCooldownUntil,until);
-
-    if(!decided.passed){
-      proposal=null;
-      renderProposal();
-      renderUpgrades();
-      toast(decided.tie?"Vote finished: Tie. Upgrade not applied.":"Vote finished: No wins.");
-      return;
-    }
-
-    const stateTx=await runTransaction(ref(db,"game"),cur=>{
-      cur=cur||{};
-      cur.upgrades=cur.upgrades||{};
-      const level=num(cur.upgrades[decided.upgradeId]);
-      const cost=authoritativeUpgradeCost(decided.upgradeId,level);
-      if(num(cur.globalClicks)<cost)return cur;
-      cur.globalClicks=Math.max(0,num(cur.globalClicks)-cost);
-      cur.upgrades[decided.upgradeId]=level+1;
-      cur.lastUpgradeCost=cost;
-      return cur;
-    });
-
-    if(stateTx.committed){
-      proposal=null;
-      renderProposal();
-      renderUpgrades();
-      toast("Vote passed. Upgrade unlocked.");
-    }else{
-      proposal=null;
-      renderProposal();
-      renderUpgrades();
-      toast("Vote passed, but there weren't enough global clicks left.");
-    }
-  }catch(err){
-    console.error("[Clicklaborate Vote] finish failed",{
-      code:err?.code,message:err?.message,error:err
-    });
-    if(err?.message==="Invalid token in path"){
-      toast("Vote data contained an invalid path value and was ignored.");
-    }else{
-      toast("Vote result failed.");
-    }
-  }finally{
-    finishingProposal=false;
-  }
+  // trusted backend resolves expired proposals
 }
 
 async function initPresence(){
@@ -1557,220 +1275,8 @@ async function initPresence(){
   setInterval(()=>update(p,{name,uid,online:true,lastSeen:now()}),3000);
 }
 
-function parseVideoId(url){
-  try{
-    const u=new URL(url);
-    if(u.hostname==="youtu.be")return u.pathname.slice(1).split("/")[0];
-    const v=u.searchParams.get("v");
-    if(v)return v;
-    const parts=u.pathname.split("/").filter(Boolean);
-    const i=parts.findIndex(x=>["live","embed","shorts"].includes(x));
-    return i>=0&&parts[i+1]?parts[i+1]:null;
-  }catch(_){return null}
-}
-
-async function youtubeRequest(endpoint,params){
-  const q=new URLSearchParams({...params,key:YOUTUBE_API_KEY});
-  const r=await fetch(`https://www.googleapis.com/youtube/v3/${endpoint}?${q.toString()}`);
-  if(!r.ok)throw new Error(`YouTube ${r.status}`);
-  return r.json();
-}
-
-async function ensureLiveChatId(){
-  if(!youtube.streamUrl)return null;
-  const videoId=parseVideoId(youtube.streamUrl);
-  if(!videoId)return null;
-  if(youtube.liveChatId)return youtube.liveChatId;
-  const data=await youtubeRequest("liveBroadcasts",{part:"id,snippet,status",id:videoId});
-  const row=data.items?.[0];
-  const chatId=row?.snippet?.liveChatId;
-  if(!chatId)return null;
-  youtube.liveChatId=chatId;
-  await update(ref(db,"youtube/source"),{streamUrl:youtube.streamUrl,liveChatId:chatId,pageToken:youtube.pageToken||""});
-  return chatId;
-}
-
-async function claimYouTubeLease(){
-  let own=false;
-  await runTransaction(ref(db,"youtube/pollerLease"),cur=>{
-    const t=now();
-    if(!cur||num(cur.expiresAt)<=t||cur.uid===uid){
-      own=true;
-      return {uid,expiresAt:t+POLLER_LEASE_MS};
-    }
-    return cur;
-  });
-  return own;
-}
-
-async function recordSuperChat(row){
-  const id=String(row.id||"");
-  if(!id)return;
-  const type=row.snippet?.type||"";
-  const author=row.authorDetails||{};
-  const publishedAt=Date.parse(row.snippet?.publishedAt||"")||now();
-  let kind="", amount=0, currency="EUR", amountDisplay="", message="", memberships=0, tier=num(row.snippet?.superChatDetails?.tier||row.snippet?.superStickerDetails?.tier);
-  if(type==="superChatEvent"){
-    const d=row.snippet?.superChatDetails||{};
-    kind="superchat";
-    amount=num(d.amountMicros)/1e6;
-    currency=d.currency||"EUR";
-    amountDisplay=d.amountDisplayString||money(amount,currency);
-    message=d.userComment||"";
-  }else if(type==="superStickerEvent"){
-    const d=row.snippet?.superStickerDetails||{};
-    kind="sticker";
-    amount=num(d.amountMicros)/1e6;
-    currency=d.currency||"EUR";
-    amountDisplay=d.amountDisplayString||money(amount,currency);
-    message=d.superStickerMetadata?.altText||"Super Sticker";
-  }else if(type==="membershipGiftingEvent"){
-    const d=row.snippet?.membershipGiftingDetails||{};
-    kind="membership";
-    memberships=Math.max(0,num(d.giftMembershipsCount));
-    amount=memberships*4.95;
-    currency="EUR";
-    amountDisplay=`€${amount.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
-    message=`Gifted ${fmt(memberships)} membership${memberships===1?"":"s"}`;
-  }else{
-    return;
-  }
-  await loadFx();
-  const donationSecond=serverSec();
-  const exact=seconds.find(x=>num(x.second)===donationSecond);
-  const recent=seconds.filter(x=>num(x.second)<=donationSecond&&donationSecond-num(x.second)<5).sort((a,b)=>num(b.second)-num(a.second));
-  const cpsAtDonation=exact?num(exact.cps):recent.length?num(recent[0].cps):Math.max(0,num(currentCps));
-  const amountEur=euroValue(amount,currency);
-  const clicks=Math.max(0,Math.round(cpsAtDonation*amountEur*2));
-  const data={
-    id,uid:author.channelId||row.snippet?.authorChannelId||"",name:author.displayName||"Anonymous",pfp:author.profileImageUrl||"",
-    type:kind,amount,currency,amountDisplay,message,memberships,tier,at:publishedAt,cpsAtDonation,amountEur,clicks
-  };
-  let inserted=false;
-  const tx=await runTransaction(ref(db,`superChats/events/${id}`),cur=>{
-    if(cur)return cur;
-    inserted=true;
-    return data;
-  });
-  if(tx.committed&&inserted){
-    await runTransaction(ref(db,"superChats/summary"),cur=>{
-      cur=cur||{count:0,revenue:0,clicks:0};
-      cur.count=num(cur.count)+1;
-      cur.revenue=num(cur.revenue)+amountEur;
-      cur.clicks=num(cur.clicks)+clicks;
-      return cur;
-    }).catch(()=>{});
-    if(clicks>0){
-      let beforeGlobal=0,beforeGenerated=0,afterGlobal=0,afterGenerated=0;
-      const addTx=await runTransaction(ref(db,"game"),cur=>{
-        cur=cur||{};
-        beforeGlobal=num(cur.globalClicks);
-        beforeGenerated=num(cur.totalGenerated);
-        beforeRaw=num(cur.rawClicks);
-        beforeGenerated=num(cur.totalGenerated);
-        afterGlobal=beforeGlobal+clicks;
-        afterGenerated=beforeGenerated+clicks;
-        afterRaw=beforeRaw;
-        cur.globalClicks=afterGlobal;
-        cur.totalGenerated=afterGenerated;
-        cur.supportClicks=num(cur.supportClicks)+clicks;
-        return cur;
-      });
-      if(addTx.committed){
-        await awardMilestones(beforeGlobal,afterGlobal,beforeGenerated,afterGenerated,beforeRaw,afterRaw);
-        const supportSecond=serverSec();
-        await runTransaction(ref(db,`seconds/${supportSecond}`),v=>{
-          v=v||{};
-          v.cps=num(v.cps)+clicks;
-          v.at=supportSecond;
-          return v;
-        }).catch(err=>console.error("[Clicklaborate SuperChat] CPS write failed",{code:err?.code,message:err?.message}));
-      }else{
-        console.error("[Clicklaborate SuperChat] click award transaction failed");
-      }
-    }
-  }
-}
-
-async function pollSuperChats(){
-  if(!youtube.streamUrl)return;
-  const lease=await claimYouTubeLease();
-  if(!lease)return;
-  try{
-    const liveChatId=await ensureLiveChatId();
-    if(!liveChatId)return;
-    const params={liveChatId,part:"id,snippet,authorDetails",maxResults:2000};
-    if(youtube.pageToken)params.pageToken=youtube.pageToken;
-    const data=await youtubeRequest("liveChatMessages",params);
-    for(const item of data.items||[]){
-      const type=item.snippet?.type;
-      if(type==="superChatEvent"||type==="superStickerEvent"||type==="membershipGiftingEvent")await recordSuperChat(item);
-    }
-    youtube.pageToken=data.nextPageToken||"";
-    await update(ref(db,"youtube/source"),{pageToken:youtube.pageToken,lastPoll:now(),liveChatId});
-    el("scStatus").textContent="tracking";
-    const delay=Math.max(4000,num(data.pollingIntervalMillis)||5000);
-    setTimeout(pollSuperChats,delay);
-  }catch(err){
-    el("scStatus").textContent="waiting";
-    setTimeout(pollSuperChats,10000);
-  }
-}
-
-async function finalizeLeaderboardCps(){
-  if(!db)return;
-  const currentSecond=serverSec();
-  const r=ref(db,`leaderboard/users/${firebaseSafeKey(uid)}`);
-  await runTransaction(r,cur=>{
-    if(!cur)return cur;
-    const cs=num(cur.currentSecond);
-    const amt=num(cur.currentSecondClicks);
-    if(cs<currentSecond){
-      return {...cur,cps:cs===currentSecond-1?amt:0,currentSecond:currentSecond,currentSecondClicks:0,lastActive:num(cur.lastActive)||0};
-    }
-    return cur;
-  }).catch(()=>{});
-}
-
-async function sampleGlobalSecond(){
-  if(!db)return;
-  const s=serverSec()-1;
-  let pointCps=0;
-  const tx=await runTransaction(ref(db,`seconds/${s}`),v=>{
-    v=v||{};
-    pointCps=num(v.cps);
-    if(v.sampled)return v;
-    v.cps=pointCps;
-    v.at=s;
-    v.sampled=true;
-    return v;
-  }).catch(()=>null);
-  if(!tx||!tx.committed)return;
-  const fresh=num(tx.snapshot?.val?.()?.cps??pointCps);
-  pointCps=fresh;
-  if(pointCps>sessionPeakCps){
-    sessionPeakCps=pointCps;
-    sessionPeakCpsAt=s;
-  }
-  let peakAfter=game.peakCps;
-  let peakAtAfter=game.peakCpsAt||0;
-  const peakTx=await runTransaction(ref(db,"game"),cur=>{
-    cur=cur||{};
-    if(pointCps>num(cur.peakCps)){
-      cur.peakCps=pointCps;
-      cur.peakCpsAt=s;
-    }
-    peakAfter=num(cur.peakCps);
-    peakAtAfter=num(cur.peakCpsAt);
-    return cur;
-  }).catch(()=>null);
-  if(peakTx?.committed){
-    game.peakCps=peakAfter;
-    game.peakCpsAt=peakAtAfter;
-  }
-  refreshCps();
-  drawChart();
-}
+// YouTube polling is server-side in v1.7. The browser only reads /youtube/source and /superChats/events.
+function youtubeRequest(){ throw new Error("YOUTUBE_SERVER_ONLY"); }
 
 function chatOrderValue(m){
   const stamp=num(m.serverAt||m.at);
@@ -1796,59 +1302,13 @@ function renderChat(){
 }
 
 async function trimChat(){
-  if(!db)return;
-  try{
-    const snap=await get(query(ref(db,"chat"),orderByChild("at"),limitToLast(201)));
-    const rows=[];
-    snap.forEach(child=>rows.push({key:child.key,data:child.val()}));
-    if(rows.length<=200)return;
-    rows.sort((a,b)=>chatOrderValue(a.data)-chatOrderValue(b.data)||String(a.key).localeCompare(String(b.key)));
-    const extra=rows.length-200;
-    await Promise.all(rows.slice(0,extra).map(x=>remove(ref(db,`chat/${x.key}`))));
-  }catch(err){
-    console.error("[Clicklaborate Chat] trim failed",{code:err?.code,message:err?.message,error:err});
-  }
+  // Server-owned chat cleanup.
 }
 
 async function sendChat(){
-  const input=el("chatInput");
-  const text=String(input.value||"").trim();
-  if(!text||!db)return;
-  const t=now();
-  chatSentTimes=chatSentTimes.filter(x=>t-num(x)<1000);
-  const remaining=Math.max(0,chatCooldownUntil-t);
-  if(remaining>0){toast(`Chat muted for ${Math.ceil(remaining/1000)}s.`);return}
-  if(text.length>300){
-    chatCooldownUntil=t+300000;
-    localStorage.setItem("clicklaborate_chat_cooldown",String(chatCooldownUntil));
-    input.value="";
-    toast("Chat muted for 5m: message was too long.");
-    return;
-  }
-  if(chatSentTimes.length>=3){
-    chatCooldownUntil=t+300000;
-    localStorage.setItem("clicklaborate_chat_cooldown",String(chatCooldownUntil));
-    input.value="";
-    toast("Chat muted for 5m: max 3 messages per second.");
-    return;
-  }
-
-  // Reserve this send synchronously so multiple rapid clicks cannot all pass
-  // the limit before their Firebase writes finish.
-  chatSentTimes.push(t);
-  chatLastSentAt=t;
-  localStorage.setItem("clicklaborate_chat_last_sent",String(t));
-  localStorage.setItem("clicklaborate_chat_sent_times",JSON.stringify(chatSentTimes));
-  input.value="";
-  try{
-    await push(ref(db,"chat"),{name,uid,text,at:t,serverAt:serverTimestamp()});
-    await trimChat();
-  }catch(err){
-    chatSentTimes=chatSentTimes.filter(x=>x!==t);
-    localStorage.setItem("clicklaborate_chat_sent_times",JSON.stringify(chatSentTimes));
-    console.error("[Clicklaborate Chat] send failed",{code:err?.code,message:err?.message,error:err});
-    toast(`Chat failed: ${err?.code||"unknown error"}`);
-  }
+  const input=el("chatInput");const text=String(input.value||"").trim();
+  if(!text)return;if(text.length>180){toast("Message is too long.");return;}
+  try{await apiRequest("/api/chat",{text});input.value="";}catch(err){console.error("[Clicklaborate API] chat failed",err);toast(err?.message||"Chat failed.");}
 }
 
 let syncStarted=false;
@@ -1910,12 +1370,10 @@ function subscribe(){
   onValue(chatRef,s=>{chatMessages=s.val()||{};renderChat()},e=>fail("chat",e));
   onValue(ref(db,"youtube/source"),s=>{youtube={...youtube,...(s.val()||{})}},e=>fail("youtube/source",e));
 
-  seedMilestones();
   setInterval(()=>{if(queuedRaw>0)flushClicks()},250);
-  setInterval(()=>{finalizeLeaderboardCps();sampleGlobalSecond()},1000);
   setInterval(()=>{renderHome();renderStats();renderSuperChats();drawChart()},1000);
   setInterval(()=>updateSmallNumber("homeCombo",currentCombo()),100);
-    setInterval(()=>{renderProposal();renderUpgrades();if(!finishingProposal)finishProposal()},1000);
+    setInterval(()=>{renderProposal();renderUpgrades()},1000);
   setInterval(()=>{if(!repoLocked)verifyRepoVersion(true)},60000);
 }
 
@@ -2044,12 +1502,18 @@ async function start(){
       console.error(tag,"App Check initialization failed",appCheckInitErr);
       toast("Firebase App Check failed. See console.");
     }
+    functions=getFunctions(app);
+    fnClick=httpsCallable(functions,"click");
+    fnPropose=httpsCallable(functions,"proposeUpgrade");
+    fnVote=httpsCallable(functions,"vote");
+    fnChat=httpsCallable(functions,"sendChat");
     auth=getAuth(app);
     try{
       try{await setPersistence(auth,browserLocalPersistence);}catch(persistErr){
         console.warn(tag,"auth persistence setup failed; continuing with Firebase default",{code:persistErr?.code,message:persistErr?.message,error:persistErr});
       }
       if(!auth.currentUser) await signInAnonymously(auth);
+    onAuthStateChanged(auth,user=>{ uid=user?.uid||""; });
       const authUid=auth.currentUser?.uid||"";
       if(!authUid) throw new Error("Firebase returned no anonymous uid");
       console.info(tag,"anonymous auth ok",authUid);
@@ -2059,54 +1523,21 @@ async function start(){
       throw authErr;
     }
     db=getDatabase(app);
-    try{
-      const profileRef=ref(db,`profiles/${firebaseSafeKey(uid)}`);
-      const profileSnap=await get(profileRef);
-      const profile=profileSnap.val();
-      if(!name && profile?.name){
-        name=String(profile.name).slice(0,24);
-        localStorage.setItem("clicklaborate_name",name);
-      }else if(name){
-        await update(profileRef,{name,uid,authUid:auth.currentUser?.uid||null,updatedAt:serverTimestamp()});
-      }
-    }catch(profileErr){
-      console.warn(tag,"profile restore failed; local account data will still be used",{code:profileErr?.code,message:profileErr?.message,error:profileErr});
+    const authUid=auth.currentUser.uid;
+    uid=authUid;
+    const profileRef=ref(db,`profiles/${firebaseSafeKey(authUid)}`);
+    const profileSnap=await get(profileRef);
+    if(!profileSnap.exists()){
+      await set(profileRef,{uid:authUid,name:cleanName(name)||"Anonymous"});
+    }else if(name){
+      await update(profileRef,{name,uid:authUid});
+    }else{
+      name=String(profileSnap.val()?.name||"");
+      if(name)localStorage.setItem("clicklaborate_name",name);
     }
-    const offsetRef=ref(db,".info/serverTimeOffset");
-    onValue(offsetRef,snap=>{serverTimeOffset=num(snap.val());});
-    const connectedRef=ref(db,".info/connected");
-    onValue(connectedRef,snap=>{
-      const connected=snap.val()===true;
-      el("connectionText").textContent=connected?"Connected":"Connecting";
-      if(!connected)toast("Could not connect to Firebase.");
-      console.info(tag,connected?"database connected":"database disconnected");
-    },err=>{
-      console.error(tag,".info/connected listener failed",{code:err?.code,message:err?.message,error:err});
-      toast("Firebase connection check failed. Check the console.");
-    });
     await initPresence();
-    console.info(tag,"presence ok");
-    const ytSourceRef=ref(db,"youtube/source");
-    const ytSourceSnap=await get(ytSourceRef);
-    if(!ytSourceSnap.exists()){
-      await set(ytSourceRef,{streamUrl:"",liveChatId:"",pageToken:"",lastPoll:0});
-      console.info(tag,"created youtube/source");
-    }
     const stateSnap=await get(ref(db,"game"));
-    console.info(tag,"game read ok",stateSnap.exists()?"game exists":"game missing");
-    if(!stateSnap.exists()){
-      const upgrades={};
-      U.forEach(d=>upgrades[d[0]]=0);
-      await set(ref(db,"game"),{globalClicks:0,totalGenerated:0,rawClicks:0,rawGenerated:0,supportClicks:0,peakCps:0,peakCpsAt:0,upgrades,lastTick:now()});
-      console.info(tag,"created initial game state");
-    }
-    try{
-      await runTransaction(ref(db,"game/globalClicks"),v=>num(v));
-      console.info(tag,"global click write permission ok");
-    }catch(writeErr){
-      console.error(tag,"global click write permission failed",{code:writeErr?.code,message:writeErr?.message,authUid:auth?.currentUser?.uid||null,appCheckReady,error:writeErr});
-      if(writeErr?.code==="PERMISSION_DENIED")toast("Firebase read works, but global click writes are denied by your Realtime Database Rules.");
-    }
+    if(!stateSnap.exists()){toast("Game state has not been initialized by the server yet.");return;}
     sessionPeakCps=currentCps;
     subscribe();
     console.info(tag,"startup complete");
@@ -2168,5 +1599,6 @@ document.addEventListener("visibilitychange",()=>{
 
 requestAnimationFrame(animationTick);
 </script>
+
 </body>
 </html>
