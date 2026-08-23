@@ -240,7 +240,7 @@ button:disabled{cursor:not-allowed;opacity:.42}
 </style>
 </head>
 <body>
-<div class="version-label" aria-hidden="true">v1.5.3</div>
+<div class="version-label" aria-hidden="true">v1.5.3.1</div>
 <div id="joinModal" class="modal show">
   <div class="modal-card">
     <h2>Join Clicklaborate</h2>
@@ -523,6 +523,8 @@ let superChats={};
 let chatMessages={};
 let chatCooldownUntil=Number(localStorage.getItem("clicklaborate_chat_cooldown")||0);
 let chatLastSentAt=Number(localStorage.getItem("clicklaborate_chat_last_sent")||0);
+let chatSentTimes=JSON.parse(localStorage.getItem("clicklaborate_chat_sent_times")||"[]");
+if(!Array.isArray(chatSentTimes))chatSentTimes=[];
 let youtube={streamUrl:"",liveChatId:"",pageToken:"",pollerLease:0,lastPoll:0};
 let localClicks=[];
 let localContribution=[];
@@ -1614,26 +1616,30 @@ async function sendChat(){
   const text=String(input.value||"").trim();
   if(!text||!db)return;
   const t=now();
+  chatSentTimes=chatSentTimes.filter(x=>t-num(x)<1000);
   const remaining=Math.max(0,chatCooldownUntil-t);
-  if(remaining>0){toast(`Chat locked for ${Math.ceil(remaining/1000)}s.`);return}
+  if(remaining>0){toast(`Chat muted for ${Math.ceil(remaining/1000)}s.`);return}
   if(text.length>300){
-    chatCooldownUntil=t+30000;
+    chatCooldownUntil=t+300000;
     localStorage.setItem("clicklaborate_chat_cooldown",String(chatCooldownUntil));
     input.value="";
-    toast("Chat locked for 30s: message was too long.");
+    toast("Chat muted for 5m: message was too long.");
     return;
   }
-  if(chatLastSentAt&&t-chatLastSentAt<1500){
-    chatCooldownUntil=t+30000;
+  if(chatSentTimes.length>=3){
+    chatCooldownUntil=t+300000;
     localStorage.setItem("clicklaborate_chat_cooldown",String(chatCooldownUntil));
-    toast("Chat locked for 30s: you're sending too quickly.");
+    input.value="";
+    toast("Chat muted for 5m: max 3 messages per second.");
     return;
   }
   input.value="";
   try{
     await push(ref(db,"chat"),{name,uid,text,at:t,serverAt:serverTimestamp()});
     chatLastSentAt=t;
+    chatSentTimes.push(t);
     localStorage.setItem("clicklaborate_chat_last_sent",String(t));
+    localStorage.setItem("clicklaborate_chat_sent_times",JSON.stringify(chatSentTimes));
     await trimChat();
   }catch(err){
     console.error("[Clicklaborate Chat] send failed",{code:err?.code,message:err?.message,error:err});
