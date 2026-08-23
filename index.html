@@ -241,7 +241,7 @@ button:disabled{cursor:not-allowed;opacity:.42}
 </style>
 </head>
 <body>
-<div class="version-label" aria-hidden="true">v1.5.9.4</div>
+<div class="version-label" aria-hidden="true">v1.6</div>
 <div id="repoLock" class="repo-lock" aria-hidden="true"><div class="repo-lock-card"><div class="repo-lock-title">Outdated build</div><div id="repoLockText" class="repo-lock-text">This page is not the current repository build.</div><div id="repoLockBuild" class="repo-lock-build"></div></div></div>
 
 <div id="joinModal" class="modal show">
@@ -586,7 +586,7 @@ let fxRates={EUR:1};
 let fxLoadedAt=0;
 let appCheckReady=false;
 
-const APP_VERSION="1.5.9.4";
+const APP_VERSION="1.6";
 const GITHUB_COMMITS_URL="https://api.github.com/repos/NoobieGD/clicklaborate/commits/main";
 let repoLocked=false;
 let repoCheckInFlight=null;
@@ -1435,8 +1435,7 @@ async function finishProposal(){
   const pRef=ref(db,"proposal/current");
 
   try{
-    const serverNowSnap=await get(ref(db,".info/serverTimeOffset"));
-    const offset=num(serverNowSnap.val());
+    const offset=serverTimeOffset;
     const sharedNow=Date.now()+offset;
     if(sharedNow<num(current.endsAt))return;
 
