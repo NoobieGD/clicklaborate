@@ -240,7 +240,7 @@ button:disabled{cursor:not-allowed;opacity:.42}
 </style>
 </head>
 <body>
-<div class="version-label" aria-hidden="true">v1.5.1</div>
+<div class="version-label" aria-hidden="true">v1.5.2</div>
 <div id="joinModal" class="modal show">
   <div class="modal-card">
     <h2>Join Clicklaborate</h2>
@@ -572,7 +572,12 @@ function effectData(){
 
 function upgradeCost(id,level){
   const d=U.find(x=>x[0]===id);
-  return d?Math.floor(num(d[3])*Math.pow(num(d[4]),level)):Infinity;
+  if(!d)return Infinity;
+  const lv=Math.max(0,num(level));
+  const base=num(d[3])*4;
+  const curve=Math.max(1.01,num(d[4])+0.18);
+  const levelPressure=1+0.14*lv*lv;
+  return Math.floor(base*Math.pow(curve,lv)*levelPressure);
 }
 
 function totalUpgradeLevels(){
