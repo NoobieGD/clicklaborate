@@ -240,7 +240,7 @@ button:disabled{cursor:not-allowed;opacity:.42}
 </style>
 </head>
 <body>
-<div class="version-label" aria-hidden="true">v1.5.7</div>
+<div class="version-label" aria-hidden="true">v1.5.8</div>
 <div id="joinModal" class="modal show">
   <div class="modal-card">
     <h2>Join Clicklaborate</h2>
@@ -469,33 +469,59 @@ const MILESTONE_USERS={
 };
 
 const UPGRADE_EFFECT_SCALE=0.001;
-const UPGRADE_PRICE_SCALE=0.06;
+const UPGRADE_PRICE_SCALE=1;
 
 const U=[
-  ["clickPower", "Strong Finger", "Adds a small amount to every click.", 1800, 2.45, "clickPower", 0.40, "👊"],
-  ["critHand", "Lucky Break", "A small chance for a click to hit twice.", 3200, 2.50, "crit", 0.004, "🍀"],
-  ["combo", "Combo Engine", "Your combo makes each click stronger.", 5200, 2.55, "combo", 0.0022, "🔗"],
-  ["groupPulse", "Squad Sync", "More active players slightly amplify every click.", 8500, 2.60, "group", 0.0012, "👥"],
-  ["rawBoost", "Overclock", "Boosts the value of your raw clicks.", 12500, 2.62, "rawBoost", 0.004, "⚡"],
-  ["doubleTap", "Double Tap", "A small chance for a click to double.", 18000, 2.66, "double", 0.0025, "✌️"],
-  ["clickTax", "Click Rebate", "Returns a tiny bonus on each click batch.", 26000, 2.70, "refund", 0.005, "💸"],
-  ["cheapHeat", "Momentum", "Rapid clicking builds a tiny temporary boost.", 36000, 2.74, "heat", 0.002, "🔥"],
-  ["burstCap", "Burst Core", "Every click batch gets a small burst multiplier.", 50000, 2.78, "burst", 0.009, "💥"],
-  ["sideways", "Echo Chamber", "Copies a small part of each click into the total.", 68000, 2.82, "sideways", 0.007, "📣"],
-  ["chain", "Chain Reaction", "Long combos make click batches slightly stronger.", 90000, 2.86, "combo", 0.0030, "⛓️"],
-  ["serverSnack", "Server Pulse", "Adds a tiny global multiplier to active clicking.", 120000, 2.90, "globalMult", 0.0035, "🖥️"],
-  ["heavyThumb", "Heavy Hand", "Directly increases the value of each click.", 155000, 2.94, "clickMult", 0.008, "🖐️"],
-  ["panicButton", "Adrenaline", "Occasionally gives a huge temporary batch shove.", 200000, 2.98, "panic", 0.0015, "🚨"],
-  ["milestoneLuck", "Milestone Surge", "Reaching milestones slightly improves future clicks.", 260000, 3.02, "milestoneMult", 0.0018, "🏁"],
-  ["globalPulse", "World Tap", "Adds a tiny global multiplier when clicking.", 335000, 3.06, "globalMult", 0.0045, "🌍"],
-  ["buttonGrease", "Perfect Timing", "Returning from a pause slightly boosts the next click batch.", 430000, 3.10, "idleBurst", 0.015, "⏱️"],
-  ["fanClub", "Hype Train", "Super Chat activity gives a tiny click multiplier.", 550000, 3.14, "superchatBonus", 0.001, "❤️"],
-  ["backPressure", "Backfire", "Missed momentum is converted into a tiny click boost.", 700000, 3.18, "backspace", 0.0015, "↩️"],
-  ["crowdNoise", "Crowd Roar", "Large active crowds slightly amplify click batches.", 890000, 3.22, "crowd", 0.010, "📢"],
-  ["sharedBattery", "Shared Charge", "Active teammates add a tiny click multiplier.", 1120000, 3.26, "group", 0.0016, "🔋"],
-  ["lateShift", "Tunnel Vision", "Long sessions slightly improve active clicking.", 1400000, 3.30, "time", 0.0007, "🌙"],
-  ["theThing", "Chaos Button", "A rare stack of click-focused effects.", 1750000, 3.34, "final", 0.35, "🌀"],
-  ["votePower", "Rally Cry", "Gives your upgrade votes a stronger influence.", 2200000, 3.38, "vote", 0.004, "🗳️"],
+  ["clickPower", "Strong Finger", "Adds a little value to every click.", 100000, 2.05, "clickPower", 0.4, "👊"],
+  ["critHand", "Lucky Break", "A small chance for a click to strike twice.", 120679, 2.08, "crit", 0.004, "🍀"],
+  ["combo", "Combo Engine", "Your combo strengthens each click.", 145635, 2.11, "combo", 0.0022, "🔗"],
+  ["groupPulse", "Squad Sync", "Active players slightly amplify clicking.", 175751, 2.14, "group", 0.0012, "👥"],
+  ["rawBoost", "Overclock", "Raises the value of raw clicks.", 212095, 2.17, "rawBoost", 0.004, "⚡"],
+  ["doubleTap", "Double Tap", "A small chance for another click to land.", 255955, 2.20, "double", 0.0025, "✌️"],
+  ["clickTax", "Click Rebate", "Returns a tiny bonus from each click batch.", 308884, 2.23, "refund", 0.005, "💸"],
+  ["cheapHeat", "Momentum", "Rapid clicks build a temporary boost.", 372759, 2.26, "heat", 0.002, "🔥"],
+  ["burstCap", "Burst Core", "Click batches can surge slightly.", 449843, 2.29, "burst", 0.009, "💥"],
+  ["sideways", "Echo Chamber", "Copies a small part of click output.", 542868, 2.32, "sideways", 0.007, "📣"],
+  ["chain", "Chain Reaction", "Long combos make batches stronger.", 655129, 2.35, "combo", 0.003, "⛓️"],
+  ["serverSnack", "Server Pulse", "Boosts active global clicking slightly.", 790604, 2.38, "globalMult", 0.0035, "🖥️"],
+  ["heavyThumb", "Heavy Hand", "Directly increases each click.", 954095, 2.41, "clickMult", 0.008, "🖐️"],
+  ["panicButton", "Adrenaline", "Rarely gives a powerful batch shove.", 1151395, 2.44, "panic", 0.0015, "🚨"],
+  ["milestoneLuck", "Milestone Surge", "Milestones slightly improve active clicks.", 1389495, 2.47, "milestoneMult", 0.0018, "🏁"],
+  ["globalPulse", "World Tap", "Adds a small active global multiplier.", 1676833, 2.50, "globalMult", 0.0045, "🌍"],
+  ["buttonGrease", "Perfect Timing", "Returning from a pause boosts the next batch.", 2023590, 2.53, "idleBurst", 0.015, "⏱️"],
+  ["fanClub", "Hype Train", "Super Chat activity slightly boosts clicks.", 2442053, 2.56, "superchatBonus", 0.001, "❤️"],
+  ["backPressure", "Backfire", "Missed momentum becomes a tiny click boost.", 2947052, 2.59, "backspace", 0.0015, "↩️"],
+  ["crowdNoise", "Crowd Roar", "Large crowds amplify active batches.", 3556480, 2.62, "crowd", 0.01, "📢"],
+  ["sharedBattery", "Shared Charge", "Teammates slightly improve each click.", 4291934, 2.65, "group", 0.0016, "🔋"],
+  ["lateShift", "Tunnel Vision", "Long sessions sharpen active clicking.", 5179475, 2.68, "time", 0.0007, "🌙"],
+  ["theThing", "Chaos Button", "A rare stack of click-focused effects.", 6250552, 2.71, "final", 0.35, "🌀"],
+  ["votePower", "Rally Cry", "Makes your upgrade vote carry more weight.", 7543120, 2.74, "vote", 0.004, "🗳️"],
+  ["precision", "Precision Strike", "Reduces wasted potential in each batch.", 9102982, 2.77, "clickPower", 0.48, "🎯"],
+  ["snap", "Snap Reflex", "Improves rapid-fire click bursts.", 10985411, 2.80, "heat", 0.0024, "🫰"],
+  ["overcharge", "Overcharge", "Raises the ceiling of burst multipliers.", 13257114, 2.83, "burst", 0.01, "🔋"],
+  ["critCore", "Critical Core", "Critical clicks hit a little harder.", 15998587, 2.86, "crit", 0.0055, "💠"],
+  ["comboLens", "Combo Lens", "Combo bonuses ramp up more smoothly.", 19306977, 2.89, "combo", 0.0034, "🔍"],
+  ["tapMatrix", "Tap Matrix", "Synchronizes your clicks into stronger batches.", 23299518, 2.92, "clickMult", 0.01, "🧩"],
+  ["rapidFire", "Rapid Fire", "Fast clicking gets a small multiplier.", 28117687, 2.95, "heat", 0.003, "🔫"],
+  ["aftershock", "Aftershock", "Successful bursts echo into the next batch.", 33932218, 2.98, "sideways", 0.009, "🌊"],
+  ["surge", "Surge Protocol", "Sometimes a batch receives an extra shove.", 40949151, 3.01, "panic", 0.002, "⚡"],
+  ["focus", "Laser Focus", "Raises the baseline value of active clicks.", 49417134, 3.04, "clickPower", 0.55, "🔴"],
+  ["crosslink", "Crosslink", "Combos and crowds reinforce each other.", 59636233, 3.07, "group", 0.002, "🔗"],
+  ["streak", "Streak Drive", "Long streaks gain a little more value.", 71968567, 3.10, "combo", 0.004, "📈"],
+  ["pulse", "Pulse Cannon", "Every batch has a chance to pulse upward.", 86851137, 3.13, "burst", 0.012, "💫"],
+  ["echo", "Double Echo", "Extra generated clicks are slightly stronger.", 104811313, 3.16, "sideways", 0.011, "📡"],
+  ["goldenTap", "Golden Tap", "Occasionally turns a normal click into a premium one.", 126485522, 3.19, "double", 0.0035, "✨"],
+  ["adrenaline2", "Adrenaline II", "Rare bursts become more potent.", 152641797, 3.22, "panic", 0.0025, "🧨"],
+  ["gravity", "Click Gravity", "Pulls surrounding click power into each batch.", 184206997, 3.25, "globalMult", 0.005, "🪐"],
+  ["overdrive", "Overdrive", "Massively favors active clicking over idling.", 222299648, 3.28, "clickMult", 0.013, "🏎️"],
+  ["zen", "Perfect Rhythm", "Consistent clicking gets a subtle bonus.", 268269580, 3.31, "heat", 0.0036, "☯️"],
+  ["chainDrive", "Chain Drive", "Higher combos add more to the next batch.", 323745754, 3.34, "combo", 0.0046, "⛓️"],
+  ["storm", "Clickstorm", "Rarely creates a burst of extra output.", 390693994, 3.37, "burst", 0.014, "🌩️"],
+  ["reactor", "Tap Reactor", "Multiplies the effect of strong click batches.", 471486636, 3.40, "clickMult", 0.016, "☢️"],
+  ["singularity", "Singularity Tap", "A high-end multiplier for active clicks.", 568986603, 3.43, "globalMult", 0.0065, "🕳️"],
+  ["finalForm", "Final Form", "The ultimate active-click amplifier.", 686648845, 3.46, "final", 0.65, "👑"],
+  ["infinityTap", "Infinity Tap", "Turns deep click streaks into a controlled surge.", 828642773, 3.49, "clickMult", 0.02, "♾️"],
+  ["apex", "Apex Click", "The final pre-endgame click amplifier.", 1000000000, 3.52, "final", 0.9, "🔱"]
 ];
 
 let db=null;
@@ -1001,9 +1027,10 @@ function renderProposal(){
   el("noFill").style.width=`${noPct}%`;
   el("yesCount").textContent=String(yes);
   el("noCount").textContent=String(no);
-  const voted=!!proposal.voters?.[uid];
+  const voteKey=firebaseSafeKey(uid);
+  const voted=!!proposal.voters?.[voteKey];
   const voteText=proposalStateText(proposal);
-  el("voteInfo").textContent=voted?`You voted ${proposal.voters[uid]}. ${voteText}`:`Voting open · ${voteText}`;
+  el("voteInfo").textContent=voted?`You voted ${proposal.voters[voteKey]}. ${voteText}`:`Voting open · ${voteText}`;
   el("voteYes").disabled=voted;
   el("voteNo").disabled=voted;
 }
@@ -1219,7 +1246,7 @@ async function proposeUpgrade(id){
   if(activeUsers()<3){toast("At least 3 people need to be online.");return}
   let storedCooldown=0;
   try{
-    const cooldownSnap=await get(ref(db,`proposal/cooldowns/${firebaseSafeKey(uid)}`));
+    const cooldownSnap=await get(ref(db,"proposal/cooldown"));
     storedCooldown=num(cooldownSnap.val()?.until||cooldownSnap.val());
   }catch(err){
     console.error("[Clicklaborate Vote] cooldown read failed",{code:err?.code,message:err?.message,error:err});
@@ -1250,14 +1277,16 @@ async function proposeUpgrade(id){
 }
 
 async function castVote(choice){
-  if(!proposal?.active||proposal.voters?.[uid])return;
+  const voteKey=firebaseSafeKey(uid);
+  if(!proposal?.active||proposal.voters?.[voteKey])return;
   try{
     const tx=await runTransaction(ref(db,"proposal/current"),cur=>{
       if(!cur?.active||cur.cancelable===true)return cur;
       if(num(cur.endsAt)<=now())return cur;
       cur.voters=cur.voters||{};
-      if(cur.voters[uid])return cur;
-      cur.voters[uid]=choice;
+      const voteKey=firebaseSafeKey(uid);
+      if(cur.voters[voteKey])return cur;
+      cur.voters[voteKey]=choice;
       cur[choice]=num(cur[choice])+1;
       cur.active=true;
       cur.locked=true;
@@ -1346,13 +1375,12 @@ async function finishProposal(){
 
     const proposerUid=typeof decided.startedByUid==="string" ? decided.startedByUid.trim() : "";
     if(proposerUid){
-      const safeProposerUid=firebaseSafeKey(proposerUid);
       const until=num(decided.cooldownUntil)||sharedNow+60000;
       try{
-        await set(ref(db,`proposal/cooldowns/${safeProposerUid}`),{until,uid:proposerUid});
+        await set(ref(db,"proposal/cooldown"),{until,uid:proposerUid});
       }catch(err){
         console.error("[Clicklaborate Vote] cooldown write failed",{
-          code:err?.code,message:err?.message,uid:proposerUid,safeKey:safeProposerUid,error:err
+          code:err?.code,message:err?.message,uid:proposerUid,error:err
         });
       }
       if(proposerUid===uid)proposalCooldownUntil=Math.max(proposalCooldownUntil,until);
