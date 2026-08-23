@@ -241,8 +241,8 @@ button:disabled{cursor:not-allowed;opacity:.42}
 </style>
 </head>
 <body>
-<div class="version-label" aria-hidden="true">v1.5.9.2-fix</div>
-<div id="repoLock" class="repo-lock" aria-hidden="true"><div class="repo-lock-card"><div class="repo-lock-title">Outdated build</div><div id="repoLockText" class="repo-lock-text">This page is not the current repository build.</div><div id="repoLockBuild" class="repo-lock-build"></div><button id="repoLockRefresh" class="btn primary">Refresh</button></div></div>
+<div class="version-label" aria-hidden="true">v1.5.9.3</div>
+<div id="repoLock" class="repo-lock" aria-hidden="true"><div class="repo-lock-card"><div class="repo-lock-title">Outdated build</div><div id="repoLockText" class="repo-lock-text">This page is not the current repository build.</div><div id="repoLockBuild" class="repo-lock-build"></div></div></div>
 
 <div id="joinModal" class="modal show">
   <div class="modal-card">
@@ -485,11 +485,11 @@ const MILESTONE_USERS={
   5000000:"noobiegd"
 };
 
-const UPGRADE_EFFECT_SCALE=0.001;
+const UPGRADE_EFFECT_SCALE=1;
 const UPGRADE_PRICE_SCALE=1;
 
 const U=[
-  ["clickPower", "Strong Finger", "Adds a little value to every click.", 6250, 2.05, "clickPower", 0.4, "👊"],
+  ["clickPower", "Strong Finger", "Adds +1 click to every click.", 6250, 2.05, "clickPower", 1, "👊"],
   ["critHand", "Lucky Break", "A small chance for a click to strike twice.", 7542, 2.08, "crit", 0.004, "🍀"],
   ["combo", "Combo Engine", "Your combo strengthens each click.", 9102, 2.11, "combo", 0.0022, "🔗"],
   ["groupPulse", "Squad Sync", "Active players slightly amplify clicking.", 10984, 2.14, "group", 0.0012, "👥"],
@@ -513,7 +513,7 @@ const U=[
   ["lateShift", "Tunnel Vision", "Long sessions sharpen active clicking.", 1294869, 2.68, "time", 0.0007, "🌙"],
   ["theThing", "Chaos Button", "A rare stack of click-focused effects.", 390660, 2.71, "final", 0.35, "🌀"],
   ["votePower", "Rally Cry", "Makes your upgrade vote carry more weight.", 471445, 2.74, "vote", 0.004, "🗳️"],
-  ["precision", "Precision Strike", "Reduces wasted potential in each batch.", 568936, 2.77, "clickPower", 0.48, "🎯"],
+  ["precision", "Precision Strike", "Reduces wasted potential in each batch.", 568936, 2.77, "clickPower", 1, "🎯"],
   ["snap", "Snap Reflex", "Improves rapid-fire click bursts.", 686588, 2.80, "heat", 0.0024, "🫰"],
   ["overcharge", "Overcharge", "Raises the ceiling of burst multipliers.", 828570, 2.83, "burst", 0.01, "🔋"],
   ["critCore", "Critical Core", "Critical clicks hit a little harder.", 999912, 2.86, "crit", 0.0055, "💠"],
@@ -522,7 +522,7 @@ const U=[
   ["rapidFire", "Rapid Fire", "Fast clicking gets a small multiplier.", 1757356, 2.95, "heat", 0.003, "🔫"],
   ["aftershock", "Aftershock", "Successful bursts echo into the next batch.", 2120764, 2.98, "sideways", 0.009, "🌊"],
   ["surge", "Surge Protocol", "Sometimes a batch receives an extra shove.", 2559322, 3.01, "panic", 0.002, "⚡"],
-  ["focus", "Laser Focus", "Raises the baseline value of active clicks.", 3088571, 3.04, "clickPower", 0.55, "🔴"],
+  ["focus", "Laser Focus", "Raises the baseline value of active clicks.", 3088571, 3.04, "clickPower", 1, "🔴"],
   ["crosslink", "Crosslink", "Combos and crowds reinforce each other.", 3727264, 3.07, "group", 0.002, "🔗"],
   ["streak", "Streak Drive", "Long streaks gain a little more value.", 4498036, 3.10, "combo", 0.004, "📈"],
   ["pulse", "Pulse Cannon", "Every batch has a chance to pulse upward.", 5428196, 3.13, "burst", 0.012, "💫"],
@@ -585,40 +585,44 @@ let fxRates={EUR:1};
 let fxLoadedAt=0;
 let appCheckReady=false;
 
-const APP_VERSION="1.5.9.2-fix";
-const REPO_RAW_URL="https://raw.githubusercontent.com/NoobieGD/clicklaborate/main/index.html";
+const APP_VERSION="1.5.9.3";
+const GITHUB_COMMITS_URL="https://api.github.com/repos/NoobieGD/clicklaborate/commits/main";
 let repoLocked=false;
 let repoCheckInFlight=null;
-function lockForRepoMismatch(remoteVersion){
+function lockForRepoMismatch(remoteCommitName){
   repoLocked=true;
   const shell=document.querySelector(".app");
   if(shell){shell.style.pointerEvents="none";shell.style.filter="blur(1px)"}
   const modal=el("repoLock");
   if(modal){modal.classList.add("show");modal.setAttribute("aria-hidden","false")}
   const text=el("repoLockText");
-  if(text)text.textContent=`GitHub is running ${remoteVersion}, but this page is ${APP_VERSION}. Refresh after the latest repository build has been published.`;
+  if(text)text.textContent=`GitHub's latest commit is "${remoteCommitName}", but this page is ${APP_VERSION}. Refresh to load the current build.`;
   const build=el("repoLockBuild");
-  if(build)build.textContent=`Local: ${APP_VERSION} · GitHub: ${remoteVersion}`;
+  if(build)build.textContent=`Local: ${APP_VERSION} · Latest commit: ${remoteCommitName}`;
 }
 async function verifyRepoVersion(force=false){
   if(repoLocked)return false;
   if(repoCheckInFlight&&!force)return repoCheckInFlight;
   repoCheckInFlight=(async()=>{
     try{
-      const r=await fetch(`${REPO_RAW_URL}?_cb=${Date.now()}`,{cache:"no-store"});
+      const r=await fetch(`${GITHUB_COMMITS_URL}?_cb=${Date.now()}`,{
+        cache:"no-store",
+        headers:{Accept:"application/vnd.github+json"}
+      });
       if(!r.ok)throw new Error(`GitHub ${r.status}`);
-      const html=await r.text();
-      const m=html.match(/<div[^>]*class=["']version-label["'][^>]*>\s*v?([^<\s]+)\s*<\/div>/i);
-      if(!m)throw new Error("version marker not found");
-      const remoteVersion=m[1];
-      if(remoteVersion!==APP_VERSION){
-        console.warn("[Clicklaborate Build] stale build",{local:APP_VERSION,remote:remoteVersion});
-        lockForRepoMismatch(remoteVersion);
+      const data=await r.json();
+      const remoteCommitName=String(data?.commit?.message||"").split(/\r?\n/,1)[0].trim();
+      if(!remoteCommitName)throw new Error("latest commit name not found");
+      const normalizedRemote=remoteCommitName.replace(/^v/i,"").trim();
+      const normalizedLocal=APP_VERSION.replace(/^v/i,"").trim();
+      if(normalizedRemote!==normalizedLocal){
+        console.warn("[Clicklaborate Build] stale build",{local:APP_VERSION,remoteCommitName});
+        lockForRepoMismatch(remoteCommitName);
         return false;
       }
       return true;
     }catch(err){
-      console.warn("[Clicklaborate Build] version check failed; allowing build",{message:err?.message,error:err});
+      console.warn("[Clicklaborate Build] commit check failed; allowing build",{message:err?.message,error:err});
       return true;
     }finally{repoCheckInFlight=null}
   })();
@@ -663,8 +667,7 @@ function effectData(){
     const lv=num(game.upgrades?.[d[0]]),k=d[5],a=num(d[6]);
     if(!lv)continue;
     if(!(k in e))continue;
-    // Direct click power is a real per-click amount; other effects keep the economy nerf.
-    e[k]+=lv*a*(k==="clickPower"?1:UPGRADE_EFFECT_SCALE);
+    e[k]+=lv*a;
   }
   return e;
 }
@@ -676,8 +679,8 @@ function authoritativeUpgradeCost(id,level=null){
   if(!d)return Infinity;
   const lv=level===null?num(game.upgrades?.[id]):Math.max(0,num(level));
   const base=Math.max(0,num(d[3]))*UPGRADE_PRICE_SCALE;
-  const curve=Math.max(1.01,num(d[4])+0.18);
-  const levelPressure=1+0.14*lv*lv;
+  const curve=Math.max(1.01,num(d[4])+0.03);
+  const levelPressure=1+0.04*lv*lv;
   return Math.floor(base*Math.pow(curve,lv)*levelPressure);
 }
 
@@ -1019,27 +1022,28 @@ async function seedMilestones(){
 
 function upgradeEffectText(d,level){
   const k=d[5],a=num(d[6]),next=level+1;
+  const pct=v=>(v*100).toFixed(2).replace(/\.00$/,"");
   if(k==="clickPower")return `+${fmt(a*next)} clicks per click`;
-    if(k==="combo")return `+${(a*100).toFixed(1)}% combo bonus per 2 combo`;
-      if(k==="crit")return `+${(a*100).toFixed(1)}% chance to crit`;
-  if(k==="group")return `+${(a*100).toFixed(1)}% per online player`;
-  if(k==="rawBoost"||k==="clickMult")return `+${(a*100).toFixed(1)}% raw click output`;
-  if(k==="double")return `+${(a*100).toFixed(1)}% chance to double`;
-    if(k==="refund")return `+${(a*100).toFixed(1)}% batch refund`;
-  if(k==="heat")return `+${(a*100).toFixed(1)}% hot-click bonus`;
-    if(k==="burst")return `+${(a*100).toFixed(1)}% burst output`;
-  if(k==="vote")return `+${(a*100).toFixed(1)}% vote weight`;
-  if(k==="chain")return `+${(a*100).toFixed(1)}% chain scaling`;
-  if(k==="backspace")return `+${(a*100).toFixed(1)}% missed-batch bonus`;
-    if(k==="milestoneMult")return `+${(a*100).toFixed(1)}% per milestone`;
-  if(k==="sideways")return `+${(a*100).toFixed(1)}% copied output`;
-  if(k==="idleBurst")return `+${(a*100).toFixed(1)}% return burst`;
-  if(k==="superchatBonus")return `+${(a*100).toFixed(2)}% support bonus per event`;
-  if(k==="globalMult")return `+${(a*100).toFixed(1)}% global output`;
-  if(k==="panic")return `+${(a*100).toFixed(1)}% huge-hit chance`;
-  if(k==="lastResort")return `+${a.toFixed(2)} CPS`;
-  if(k==="final")return `+${a.toFixed(2)} CPS +${(a*100/45).toFixed(1)}% output`;
-  return `+${a}`;
+  if(k==="crit")return `+${pct(a*next)}% chance to crit (2×)`;
+  if(k==="combo"||k==="chain")return `+${pct(a*next)}% click power per 3 combo`;
+  if(k==="group"||k==="crowd"||k==="sharedBattery")return `+${pct(a*next)}% output per active player`;
+  if(k==="rawBoost"||k==="clickMult")return `+${pct(a*next)}% click output`;
+  if(k==="double")return `+${pct(a*next)}% chance to double a click`;
+  if(k==="refund")return `+${pct(a*next)}% bonus output per batch`;
+  if(k==="heat")return `+${pct(a*next)}% rapid-click bonus`;
+  if(k==="burst")return `+${pct(a*next)}% burst output when a burst triggers`;
+  if(k==="vote")return `+${pct(a*next)}% vote weight`;
+  if(k==="backspace")return `+${pct(a*next)}% comeback bonus after a combo reset`;
+  if(k==="milestoneMult")return `+${pct(a*next)}% output per reached milestone`;
+  if(k==="sideways")return `+${pct(a*next)}% copied output`;
+  if(k==="idleBurst")return `+${pct(a*next)}% return-from-pause bonus`;
+  if(k==="superchatBonus")return `+${pct(a*next)}% output per recent Super Chat`;
+  if(k==="globalMult")return `+${pct(a*next)}% global click output`;
+  if(k==="panic")return `+${pct(a*next)}% chance for an 8× surge`;
+  if(k==="time"||k==="uptime")return `+${pct(a*next)}% output per active minute`;
+  if(k==="lastResort")return `+${pct(a*next)}% emergency output`;
+  if(k==="final")return `+${pct(a*next)}% final output`;
+  return `+${fmt(a*next)}`;
 }
 
 function renderUpgrades(){
@@ -1136,14 +1140,24 @@ function currentCombo(){
 function sharedClicksPerClick(){
   const e=effectData();
   const combo=Math.max(0,currentCombo());
-  let mult=1+e.mult+e.clickMult+e.final+(Math.max(0,activeUsers()-1))*e.group;
+  const recentClicks=pruneLocalClicks().length;
+  const recentSuperChats=Object.keys(superChats||{}).length;
+  const sessionMinutes=Math.min(60,Math.max(0,(now()-num(sessionStart))/60000));
+
+  let mult=1;
+  mult*=1+e.clickMult+e.globalMult+e.final+e.lastResort;
+  mult*=1+(Math.max(0,activeUsers()-1))*(e.group+e.crowd+e.sharedBattery);
   mult*=1+e.combo*Math.min(30,Math.floor(combo/3));
-  mult*=1+e.crit;
-  mult*=1+e.double;
-  mult*=1+1.5*e.panic;
-  mult*=1+0.5*e.burst;
-  if(Object.keys(milestones||{}).length)mult*=1+e.milestoneMult*Object.keys(milestones||{}).length;
-  return Math.max(1,(1+e.clickPower+e.rawBoost+e.refund)*(1+0.25*e.sideways)*mult);
+  mult*=1+e.chain*Math.min(30,Math.floor(combo/3));
+  mult*=1+e.milestoneMult*milestoneBonusCount();
+  mult*=1+e.sideways;
+  mult*=1+e.refund;
+  mult*=1+e.rawBoost;
+  mult*=1+e.superchatBonus*recentSuperChats;
+  mult*=1+e.time*sessionMinutes+e.uptime*sessionMinutes;
+  if(recentClicks>=10)mult*=1+e.heat;
+  if(combo===0&&recentClicks>0)mult*=1+e.backspace;
+  return Math.max(1,(1+e.clickPower)*mult);
 }
 
 function peakTimeText(ts){
@@ -1282,14 +1296,42 @@ async function flushClicks(){
   queuedRaw=0;
   const e=effectData();
   const comboLevel=currentCombo();
-  let mult=1+e.mult+e.clickMult+e.final+(activeUsers()-1)*e.group+(pruneLocalClicks()>=10?e.heat:0);
+  const recentClicks=pruneLocalClicks().length;
+  const recentSuperChats=Object.keys(superChats||{}).length;
+  const sessionMinutes=Math.min(60,Math.max(0,(now()-num(sessionStart))/60000));
+  const gapSinceClick=localClicks.length?now()-localClicks[localClicks.length-1]:Infinity;
+
+  let mult=1;
+  mult*=1+e.clickMult+e.globalMult+e.final+e.lastResort;
+  mult*=1+(Math.max(0,activeUsers()-1))*(e.group+e.crowd+e.sharedBattery);
   mult*=1+e.combo*Math.min(30,Math.floor(comboLevel/3));
-  if(Math.random()<Math.min(.9,e.crit))mult*=2;
-  if(Math.random()<Math.min(.95,e.double))mult*=2;
-  if(Math.random()<Math.min(.9,e.panic))mult*=8;
-  mult*=1+0.5*e.burst;
-  if(num(milestoneBonusCount())>0)mult*=1+e.milestoneMult*num(milestoneBonusCount());
-  const generated=Math.max(raw,Math.round(raw*(1+e.clickPower+e.rawBoost+e.refund)*(1+e.sideways)*mult));
+  mult*=1+e.chain*Math.min(30,Math.floor(comboLevel/3));
+  mult*=1+e.milestoneMult*milestoneBonusCount();
+  mult*=1+e.sideways;
+  mult*=1+e.refund;
+  mult*=1+e.rawBoost;
+  mult*=1+e.superchatBonus*recentSuperChats;
+  mult*=1+e.time*sessionMinutes+e.uptime*sessionMinutes;
+
+  if(recentClicks>=10)mult*=1+e.heat;
+
+  // Returning after a pause gets the described return burst.
+  if(gapSinceClick>=3000)mult*=1+e.idleBurst;
+
+  // A combo reset triggers the described comeback bonus.
+  if(comboLevel===0&&raw>0)mult*=1+e.backspace;
+
+  // Burst upgrades now actually have a chance to trigger.
+  if(Math.random()<Math.min(0.5,e.burst))mult*=1+e.burst;
+
+  // Panic is an explicit rare surge.
+  if(Math.random()<Math.min(0.5,e.panic))mult*=8;
+
+  // Crit and double-click are explicit chance-based effects.
+  if(Math.random()<Math.min(0.5,e.crit))mult*=2;
+  if(Math.random()<Math.min(0.5,e.double))mult*=2;
+
+  const generated=Math.max(raw,Math.round(raw*(1+e.clickPower)*mult));
   try{
     await generateClicks(generated,raw);
     localContribution.push({at:now(),amount:generated});
@@ -1323,8 +1365,9 @@ async function proposeUpgrade(id){
   if(activeUsers()<3){toast("At least 3 people need to be online.");return}
   let storedCooldown=0;
   try{
-    const cooldownSnap=await get(ref(db,"proposal/cooldown"));
-    storedCooldown=num(cooldownSnap.val()?.until||cooldownSnap.val());
+    const currentSnap=await get(ref(db,"proposal/current"));
+    const currentData=currentSnap.val()||{};
+    storedCooldown=num(currentData.cooldowns?.[firebaseSafeKey(uid)]);
   }catch(err){
     console.error("[Clicklaborate Vote] cooldown read failed",{code:err?.code,message:err?.message,error:err});
   }
@@ -1340,7 +1383,8 @@ async function proposeUpgrade(id){
   try{
     const tx=await runTransaction(pRef,cur=>{
       if(cur?.active)return cur;
-      return {id:proposalId,active:true,locked:true,cancelable:false,upgradeId:id,cost,yes:0,no:0,voters:{},startedBy:name,startedByUid:uid,startedAt:now(),endsAt:now()+VOTE_SECONDS*1000};
+      const cooldowns=cur?.cooldowns||{};
+      return {id:proposalId,active:true,locked:true,cancelable:false,upgradeId:id,cost,yes:0,no:0,voters:{},cooldowns,startedBy:name,startedByUid:uid,startedAt:now(),endsAt:now()+VOTE_SECONDS*1000};
     });
     const saved=tx.snapshot?.val?.()||null;
     if(!tx.committed||saved?.id!==proposalId){toast("A vote is already running.");return}
@@ -1354,6 +1398,7 @@ async function proposeUpgrade(id){
 }
 
 async function castVote(choice){
+  if(choice!=="yes"&&choice!=="no")return;
   const voteKey=firebaseSafeKey(uid);
   if(!proposal?.active||proposal.voters?.[voteKey])return;
   try{
@@ -1364,7 +1409,8 @@ async function castVote(choice){
       const voteKey=firebaseSafeKey(uid);
       if(cur.voters[voteKey])return cur;
       cur.voters[voteKey]=choice;
-      cur[choice]=num(cur[choice])+1;
+      const voteWeight=1+Math.max(0,num(effectData().vote));
+      cur[choice]=num(cur[choice])+voteWeight;
       cur.active=true;
       cur.locked=true;
       cur.cancelable=false;
@@ -1424,6 +1470,9 @@ async function finishProposal(){
           if(t<num(cur.endsAt))return cur;
           const yes=num(cur.yes),no=num(cur.no);
           const passed=yes>no;
+          const cooldowns={...(cur.cooldowns||{})};
+          const proposerKey=firebaseSafeKey(cur.startedByUid||"");
+          if(proposerKey)cooldowns[proposerKey]=t+60000;
           return {
             ...cur,
             active:false,
@@ -1434,6 +1483,7 @@ async function finishProposal(){
             tie:yes===no,
             resolvedAt:t,
             cooldownUntil:t+60000,
+            cooldowns,
             finishingBy:null,
             finishingUntil:null
           };
@@ -1451,17 +1501,8 @@ async function finishProposal(){
     if(!decided)return;
 
     const proposerUid=typeof decided.startedByUid==="string" ? decided.startedByUid.trim() : "";
-    if(proposerUid){
-      const until=num(decided.cooldownUntil)||sharedNow+60000;
-      try{
-        await set(ref(db,"proposal/cooldown"),{until,uid:proposerUid});
-      }catch(err){
-        console.error("[Clicklaborate Vote] cooldown write failed",{
-          code:err?.code,message:err?.message,uid:proposerUid,error:err
-        });
-      }
-      if(proposerUid===uid)proposalCooldownUntil=Math.max(proposalCooldownUntil,until);
-    }
+    const until=num(decided.cooldowns?.[firebaseSafeKey(proposerUid)])||num(decided.cooldownUntil)||sharedNow+60000;
+    if(proposerUid===uid)proposalCooldownUntil=Math.max(proposalCooldownUntil,until);
 
     if(!decided.passed){
       proposal=null;
@@ -1975,6 +2016,8 @@ async function enter(){
 }
 
 async function start(){
+  const buildOkay=await verifyRepoVersion(true);
+  if(!buildOkay)return;
   const tag="[Clicklaborate Firebase]";
   try{
     console.info(tag,"starting",{projectId:firebaseConfig.projectId,databaseURL:firebaseConfig.databaseURL,location:location.href});
