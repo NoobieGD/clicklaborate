@@ -536,13 +536,18 @@ function totalUpgradeLevels(){
   return U.reduce((a,d)=>a+num(game.upgrades?.[d[0]]),0);
 }
 
-function buildRoll(target,fromValue=null){
+let rollLastAnimatedSecond=0;
+
+function buildRoll(target,fromValue=null,animate=false){
   const node=el("mainCounter");
-  const value=String(Math.max(0,Math.floor(num(target)))).toLocaleString("en-US");
-  const oldValue=String(fromValue==null?node.dataset.display||target:Math.max(0,Math.floor(num(fromValue)))).toLocaleString("en-US");
-  const oldDigits=oldValue.split("").filter(ch=>/[0-9]/.test(ch));
-  const newDigits=value.split("").filter(ch=>/[0-9]/.test(ch));
+  const raw=Math.max(0,Math.floor(num(target)));
+  const value=raw.toLocaleString("en-US");
+  const oldRaw=Math.max(0,Math.floor(num(fromValue==null?(node.dataset.display||raw):fromValue)));
+  const oldValue=oldRaw.toLocaleString("en-US");
+  const oldDigits=[...oldValue].filter(ch=>/[0-9]/.test(ch));
+  const newDigits=[...value].filter(ch=>/[0-9]/.test(ch));
   node.innerHTML="";
+  const cells=[];
   let di=0;
   for(const ch of value){
     if(!/[0-9]/.test(ch)){
@@ -559,43 +564,34 @@ function buildRoll(target,fromValue=null){
     const toDigit=Number(ch);
     cell.dataset.current=String(fromDigit);
     cell.dataset.target=String(toDigit);
-    cell.dataset.busy="0";
     const track=document.createElement("span");
     track.className="roll-track";
-    const wrap=document.createElement("span");
-    wrap.textContent=String(fromDigit);
-    track.appendChild(wrap);
-    track.style.transition="none";
-    track.style.transform="translateY(0)";
+    const only=document.createElement("span");
+    only.textContent=String(fromDigit);
+    track.appendChild(only);
     cell.appendChild(track);
     node.appendChild(cell);
+    cells.push(cell);
     di++;
   }
   node.dataset.value=value;
-  node.dataset.target=String(Math.max(0,Math.floor(num(target))));
-  if(fromValue==null)node.dataset.display=String(Math.max(0,Math.floor(num(target))));
-  if(fromValue!=null){
-    const builtCells=[...node.children].filter(x=>x.classList.contains("roll-digit"));
-    const builtDigits=builtCells.map(x=>Number(x.dataset.target||0));
-    animateRollGroup(builtCells,builtDigits);
-  }
+  node.dataset.target=String(raw);
+  node.dataset.display=String(oldRaw);
+  if(animate)animateRollGroup(cells,newDigits);
 }
 
 function animateRollGroup(cells,digits){
   if(!cells.length)return;
   const jobs=[];
-  cells.forEach((cell,i)=>{
+  for(let i=0;i<cells.length;i++){
+    const cell=cells[i];
     const track=cell.querySelector(".roll-track");
-    if(!track)return;
-    const target=((Number(digits[i])%10)+10)%10;
+    if(!track)continue;
+    const target=((Number(digits[i])||0)%10+10)%10;
     const current=((Number(cell.dataset.current)||0)%10+10)%10;
     cell.dataset.target=String(target);
-    if(current===target){
-      cell.dataset.busy="0";
-      return;
-    }
-    const forward=(target-current+10)%10;
-    const steps=forward||10;
+    if(current===target)continue;
+    const steps=(target-current+10)%10 || 10;
     track.innerHTML="";
     for(let n=0;n<=steps;n++){
       const d=document.createElement("span");
@@ -604,20 +600,17 @@ function animateRollGroup(cells,digits){
     }
     track.style.transition="none";
     track.style.transform="translateY(0)";
-    cell.dataset.busy="1";
     jobs.push({cell,track,target,steps});
-  });
+  }
   if(!jobs.length)return;
-  requestAnimationFrame(()=>requestAnimationFrame(()=>{
-    const t=performance.now();
+  const run=()=>{
     jobs.forEach(job=>{
       if(!job.cell.isConnected)return;
-      job.track.dataset.started=String(t);
       job.track.style.transition="transform 1000ms cubic-bezier(.37,0,.63,1)";
       job.track.style.transform=`translateY(-${job.steps}em)`;
-      job.track.addEventListener("transitionend",function done(){
+      const done=()=>{
         job.track.removeEventListener("transitionend",done);
-        const latest=((Number(job.cell.dataset.target)%10)+10)%10;
+        const latest=((Number(job.cell.dataset.target)||0)%10+10)%10;
         job.track.style.transition="none";
         job.track.innerHTML="";
         const only=document.createElement("span");
@@ -625,45 +618,43 @@ function animateRollGroup(cells,digits){
         job.track.appendChild(only);
         job.track.style.transform="translateY(0)";
         job.cell.dataset.current=String(latest);
-        job.cell.dataset.busy="0";
-      },{once:true});
+      };
+      job.track.addEventListener("transitionend",done,{once:true});
     });
-  }));
+  };
+  requestAnimationFrame(()=>requestAnimationFrame(run));
 }
 
 function updateRoll(target){
   const node=el("mainCounter");
   const rawTarget=Math.max(0,Math.floor(num(target)));
-  const value=String(rawTarget).toLocaleString("en-US");
-  const currentValue=String(node.dataset.value||"");
-  const currentDigits=currentValue.replace(/\D/g,"").length;
-  const nextDigits=value.replace(/\D/g,"").length;
+  const value=rawTarget.toLocaleString("en-US");
   node.dataset.target=String(rawTarget);
-
+  const currentValue=String(node.dataset.value||"");
+  const oldShown=num(node.dataset.display||currentValue.replace(/,/g,"")||rawTarget);
+  const currentDigits=[...currentValue].filter(ch=>/[0-9]/.test(ch)).length;
+  const nextDigits=[...value].filter(ch=>/[0-9]/.test(ch)).length;
+  const thisSecond=sec();
   if(!node.children.length){
-    buildRoll(rawTarget);
+    buildRoll(rawTarget,rawTarget,false);
+    node.dataset.display=String(rawTarget);
+    rollLastAnimatedSecond=thisSecond;
     return;
   }
-
+  if(thisSecond===rollLastAnimatedSecond)return;
+  rollLastAnimatedSecond=thisSecond;
   if(currentDigits!==nextDigits){
-    const displayed=Number(node.dataset.display||currentValue.replace(/,/g,"")||0);
-    buildRoll(rawTarget,displayed);
+    buildRoll(rawTarget,oldShown,true);
     return;
   }
-
-  const chars=[...value];
   const cells=[...node.children].filter(item=>item.classList.contains("roll-digit"));
-  const digits=[];
-  let di=0;
-  for(const ch of chars){
-    if(!/[0-9]/.test(ch))continue;
-    if(!cells[di]){buildRoll(rawTarget,Number(node.dataset.display||0));return}
-    digits.push(Number(ch));
-    di++;
+  const digits=[...value].filter(ch=>/[0-9]/.test(ch)).map(Number);
+  if(cells.length!==digits.length){
+    buildRoll(rawTarget,oldShown,true);
+    return;
   }
-  const needsAnimation=cells.some((cell,i)=>Number(cell.dataset.current||0)!==digits[i] && cell.dataset.busy!=="1");
   cells.forEach((cell,i)=>cell.dataset.target=String(digits[i]));
-  if(needsAnimation)animateRollGroup(cells,digits);
+  animateRollGroup(cells,digits);
   node.dataset.value=value;
   node.dataset.display=String(rawTarget);
 }
@@ -785,7 +776,7 @@ function renderUpgrades(){
   const html=U.map(d=>{
     const level=num(game.upgrades?.[d[0]]);
     const cost=upgradeCost(d[0],level);
-    const can=num(game.globalClicks)>=cost && activeUsers()>=3;
+    const can=!proposal?.active && num(game.globalClicks)>=cost && activeUsers()>=3;
     return `<div class="upgrade">
       <div class="up-top"><div class="up-name">${d[7]} ${escapeText(d[1])}</div><div class="up-level">Lv ${level}</div></div>
       <div class="up-desc">${escapeText(d[2])}</div>
@@ -1071,22 +1062,23 @@ async function castVote(choice){
 }
 
 async function finishProposal(){
-  const p=proposal;
-  if(!p?.active||num(p.endsAt)>now())return;
+  const current=proposal;
+  if(!current?.active||num(current.endsAt)>now())return;
   const pRef=ref(db,"proposal/current");
   try{
-    const tx=await runTransaction(pRef,cur=>{
-      if(!cur?.active||cur.id!==p.id||num(cur.endsAt)>now())return cur;
-      if(num(cur.yes)<=num(cur.no))return null;
-      cur.finished=true;
-      return cur;
+    const decision=await runTransaction(pRef,cur=>{
+      if(!cur?.active||cur.id!==current.id||num(cur.endsAt)>now())return cur;
+      const passed=num(cur.yes)>num(cur.no);
+      return {...cur,active:false,resolved:true,passed,resolvedAt:now()};
     });
-    if(!tx.committed)return;
-    const decided=tx.snapshot?.val?.();
-    if(!decided){proposal=null;renderProposal();return}
-    if(activeUsers()<3){
-      await runTransaction(pRef,cur=>cur?.id===p.id?null:cur);
-      toast("Vote passed, but fewer than 3 people are online now, so it was cancelled.");
+    if(!decision.committed)return;
+    const decided=decision.snapshot?.val();
+    if(!decided)return;
+    if(!decided.passed){
+      proposal=null;
+      renderProposal();
+      renderUpgrades();
+      toast("Vote finished: No wins.");
       return;
     }
     const stateTx=await runTransaction(ref(db,"game"),cur=>{
@@ -1098,14 +1090,19 @@ async function finishProposal(){
       return cur;
     });
     if(stateTx.committed){
-      await runTransaction(pRef,cur=>cur?.id===p.id?null:cur);
-      toast("Upgrade unlocked.");
+      proposal=null;
+      renderProposal();
+      renderUpgrades();
+      toast("Vote passed. Upgrade unlocked.");
     }else{
-      await runTransaction(pRef,cur=>cur?.id===p.id?null:cur);
-      toast("The vote passed, but there were not enough global clicks left.");
+      proposal=null;
+      renderProposal();
+      renderUpgrades();
+      toast("Vote passed, but there weren't enough global clicks left.");
     }
   }catch(err){
     console.error("[Clicklaborate Vote] finish failed",{code:err?.code,message:err?.message,error:err});
+    toast(err?.code==="PERMISSION_DENIED"?"Firebase blocked the vote result.":"Vote result failed.");
   }
 }
 
@@ -1368,7 +1365,7 @@ function subscribe(){
   setInterval(()=>{renderHome();renderStats();renderSuperChats();drawChart()},1000);
   setInterval(()=>updateSmallNumber("homeCombo",currentCombo()),100);
   setInterval(passiveTick,2000);
-  setInterval(finishProposal,1000);
+  setInterval(()=>{renderProposal();renderUpgrades();finishProposal()},1000);
 }
 
 function animationTick(){
