@@ -241,7 +241,7 @@ button:disabled{cursor:not-allowed;opacity:.42}
 </style>
 </head>
 <body>
-<div class="version-label" aria-hidden="true">v1.5.9.3</div>
+<div class="version-label" aria-hidden="true">v1.5.9.4</div>
 <div id="repoLock" class="repo-lock" aria-hidden="true"><div class="repo-lock-card"><div class="repo-lock-title">Outdated build</div><div id="repoLockText" class="repo-lock-text">This page is not the current repository build.</div><div id="repoLockBuild" class="repo-lock-build"></div></div></div>
 
 <div id="joinModal" class="modal show">
@@ -581,11 +581,12 @@ let rollTarget=0;
 let currentCps=0;
 let sessionPeakCps=0;
 let sessionPeakCpsAt=0;
+let sessionStart=Date.now();
 let fxRates={EUR:1};
 let fxLoadedAt=0;
 let appCheckReady=false;
 
-const APP_VERSION="1.5.9.3";
+const APP_VERSION="1.5.9.4";
 const GITHUB_COMMITS_URL="https://api.github.com/repos/NoobieGD/clicklaborate/commits/main";
 let repoLocked=false;
 let repoCheckInFlight=null;
@@ -1550,7 +1551,7 @@ async function finishProposal(){
 }
 
 async function initPresence(){
-  const p=ref(db,`presence/${uid}`);
+  const p=ref(db,`presence/${firebaseSafeKey(uid)}`);
   const data={name,uid,online:true,lastSeen:now()};
   await set(p,data);
   onDisconnect(p).update({online:false,lastSeen:serverTimestamp()});
@@ -2060,7 +2061,7 @@ async function start(){
     }
     db=getDatabase(app);
     try{
-      const profileRef=ref(db,`profiles/${uid}`);
+      const profileRef=ref(db,`profiles/${firebaseSafeKey(uid)}`);
       const profileSnap=await get(profileRef);
       const profile=profileSnap.val();
       if(!name && profile?.name){
@@ -2146,7 +2147,7 @@ window.addEventListener("keydown",e=>{
 });
 
 window.addEventListener("beforeunload",()=>{
-  if(db)set(ref(db,`presence/${uid}`),{name,uid,online:false,lastSeen:now()}).catch(()=>{});
+  if(db)set(ref(db,`presence/${firebaseSafeKey(uid)}`),{name,uid,online:false,lastSeen:now()}).catch(()=>{});
 });
 
 el("sideName").textContent=name||"—";
