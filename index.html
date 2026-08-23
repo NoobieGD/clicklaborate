@@ -240,7 +240,7 @@ button:disabled{cursor:not-allowed;opacity:.42}
 </style>
 </head>
 <body>
-<div class="version-label" aria-hidden="true">v1.5.4.1</div>
+<div class="version-label" aria-hidden="true">v1.5.5</div>
 <div id="joinModal" class="modal show">
   <div class="modal-card">
     <h2>Join Clicklaborate</h2>
@@ -468,6 +468,8 @@ const MILESTONE_USERS={
   5000000:"noobiegd"
 };
 
+const UPGRADE_EFFECT_SCALE=0.02;
+
 const U=[
   ["clickPower", "Strong Finger", "Each click gives a bit more.", 245000, 2.9, "clickPower", 0.45, "👍"],
   ["passiveRate", "Lazy Clicks", "Adds a little CPS without pressing anything.", 385000, 2.96, "passive", 0.10, "😴"],
@@ -575,7 +577,7 @@ function effectData(){
   for(const d of U){
     const lv=num(game.upgrades?.[d[0]]),k=d[5],a=num(d[6]);
     if(!lv)continue;
-    if(k in e)e[k]+=lv*a;
+    if(k in e)e[k]+=lv*a*UPGRADE_EFFECT_SCALE;
   }
   return e;
 }
@@ -1470,7 +1472,7 @@ async function recordSuperChat(row){
   const recent=seconds.filter(x=>num(x.second)<=donationSecond&&donationSecond-num(x.second)<5).sort((a,b)=>num(b.second)-num(a.second));
   const cpsAtDonation=exact?num(exact.cps):recent.length?num(recent[0].cps):Math.max(0,num(currentCps));
   const amountEur=euroValue(amount,currency);
-  const clicks=Math.max(0,Math.round(cpsAtDonation*amountEur*100));
+  const clicks=Math.max(0,Math.round(cpsAtDonation*amountEur*2));
   const data={
     id,uid:author.channelId||row.snippet?.authorChannelId||"",name:author.displayName||"Anonymous",pfp:author.profileImageUrl||"",
     type:kind,amount,currency,amountDisplay,message,memberships,tier,at:publishedAt,cpsAtDonation,amountEur,clicks
