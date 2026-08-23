@@ -476,7 +476,9 @@ let superChats={};
 let chatMessages={};
 let youtube={streamUrl:"",liveChatId:"",pageToken:"",pollerLease:0,lastPoll:0};
 let localClicks=[];
-let queued={};
+let queuedRaw=0;
+let flushBusy=false;
+let flushTimer=0;
 let rendered={};
 let lastFrame=performance.now();
 let visualCounter=0;
@@ -912,19 +914,19 @@ async function generateClicks(amount,rawDelta=0){
 }
 
 function queueClick(){
-  const s=sec();
-  queued[s]=num(queued[s])+1;
+  queuedRaw++;
   localClicks.push(now());
   localClicksTotal++;
   localStorage.setItem("clicklaborate_raw",String(localClicksTotal));
   renderHome();
+  if(!flushTimer)flushTimer=setTimeout(()=>{flushTimer=0;flushClicks()},60);
 }
 
 async function flushClicks(){
-  const s=sec()-1;
-  const raw=num(queued[s]);
-  if(!raw)return;
-  delete queued[s];
+  if(flushBusy||!db||queuedRaw<=0)return;
+  flushBusy=true;
+  const raw=queuedRaw;
+  queuedRaw=0;
   const e=effectData();
   const comboLevel=currentCombo();
   let mult=1+e.mult+e.clickMult+e.final+(activeUsers()-1)*e.group+(localClicks.length>=10?e.heat:0);
@@ -935,7 +937,16 @@ async function flushClicks(){
   mult*=1+e.burst;
   if(num(Object.keys(milestones).length)>0)mult*=1+e.milestoneMult*num(Object.keys(milestones).length);
   const generated=Math.max(raw,Math.round(raw*(1+e.clickPower+e.rawBoost+e.refund)*(1+e.sideways)*mult));
-  try{await generateClicks(generated,raw)}catch(_){queued[s]=num(queued[s])+raw}
+  try{
+    await generateClicks(generated,raw);
+  }catch(err){
+    queuedRaw+=raw;
+    console.error("[Clicklaborate Multiplayer] click sync failed",{code:err?.code,message:err?.message,error:err});
+    if(err?.code==="PERMISSION_DENIED")toast("Clicks were blocked by Firebase rules.");
+  }finally{
+    flushBusy=false;
+    if(queuedRaw>0&&!flushTimer)flushTimer=setTimeout(()=>{flushTimer=0;flushClicks()},60);
+  }
 }
 
 let passiveAt=0;
@@ -1234,13 +1245,17 @@ async function sendChat(){
   }
 }
 
+let syncStarted=false;
 function subscribe(){
+  if(syncStarted)return;
+  syncStarted=true;
   const watch=(path,fn)=>onValue(ref(db,path),fn,err=>{
     console.error("[Clicklaborate Firebase] listener failed",{path,code:err?.code,message:err?.message,error:err});
     toast(`Firebase read failed: ${err?.code||"unknown error"}`);
   });
   watch("game",s=>{
-    game={...game,...(s.val()||{})};
+    const incoming=s.val()||{};
+    game={...game,...incoming};
     if(!game.upgrades)game.upgrades={};
     rollTarget=num(game.globalClicks);
     lastKnownTotal=rollTarget;
@@ -1261,7 +1276,7 @@ function subscribe(){
   watch("superChats/events",s=>{superChats=s.val()||{};renderSuperChats();renderStats()});
   watch("chat",s=>{chatMessages=s.val()||{};renderChat()});
   watch("youtube/source",s=>{youtube={...youtube,...(s.val()||{})}});
-  setInterval(flushClicks,1000);
+  setInterval(()=>{if(queuedRaw>0)flushClicks()},250);
   setInterval(sampleGlobalSecond,1000);
   setInterval(()=>{renderHome();renderStats();renderSuperChats();drawChart();},1000);
   setInterval(passiveTick,2000);
