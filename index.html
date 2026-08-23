@@ -538,17 +538,11 @@ function totalUpgradeLevels(){
 
 let rollLastAnimatedSecond=0;
 
-function buildRoll(target,fromValue=null,animate=false){
+function makeRollDom(value){
   const node=el("mainCounter");
-  const raw=Math.max(0,Math.floor(num(target)));
-  const value=raw.toLocaleString("en-US");
-  const oldRaw=Math.max(0,Math.floor(num(fromValue==null?(node.dataset.display||raw):fromValue)));
-  const oldValue=oldRaw.toLocaleString("en-US");
-  const oldDigits=[...oldValue].filter(ch=>/[0-9]/.test(ch));
-  const newDigits=[...value].filter(ch=>/[0-9]/.test(ch));
   node.innerHTML="";
   const cells=[];
-  let di=0;
+  let i=0;
   for(const ch of value){
     if(!/[0-9]/.test(ch)){
       const mark=document.createElement("span");
@@ -559,25 +553,20 @@ function buildRoll(target,fromValue=null,animate=false){
     }
     const cell=document.createElement("span");
     cell.className="roll-digit";
-    const oldIndex=oldDigits.length-newDigits.length+di;
-    const fromDigit=oldIndex>=0?Number(oldDigits[oldIndex]):0;
-    const toDigit=Number(ch);
-    cell.dataset.current=String(fromDigit);
-    cell.dataset.target=String(toDigit);
+    cell.dataset.current=String(Number(ch));
+    cell.dataset.target=String(Number(ch));
     const track=document.createElement("span");
     track.className="roll-track";
     const only=document.createElement("span");
-    only.textContent=String(fromDigit);
+    only.textContent=ch;
     track.appendChild(only);
     cell.appendChild(track);
     node.appendChild(cell);
     cells.push(cell);
-    di++;
+    i++;
   }
   node.dataset.value=value;
-  node.dataset.target=String(raw);
-  node.dataset.display=String(oldRaw);
-  if(animate)animateRollGroup(cells,newDigits);
+  return cells;
 }
 
 function animateRollGroup(cells,digits){
@@ -587,11 +576,11 @@ function animateRollGroup(cells,digits){
     const cell=cells[i];
     const track=cell.querySelector(".roll-track");
     if(!track)continue;
-    const target=((Number(digits[i])||0)%10+10)%10;
     const current=((Number(cell.dataset.current)||0)%10+10)%10;
+    const target=((Number(digits[i])||0)%10+10)%10;
     cell.dataset.target=String(target);
     if(current===target)continue;
-    const steps=(target-current+10)%10 || 10;
+    const steps=(target-current+10)%10||10;
     track.innerHTML="";
     for(let n=0;n<=steps;n++){
       const d=document.createElement("span");
@@ -603,60 +592,60 @@ function animateRollGroup(cells,digits){
     jobs.push({cell,track,target,steps});
   }
   if(!jobs.length)return;
-  const run=()=>{
-    jobs.forEach(job=>{
-      if(!job.cell.isConnected)return;
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    const end=now()+1000;
+    for(const job of jobs){
+      if(!job.cell.isConnected)continue;
       job.track.style.transition="transform 1000ms cubic-bezier(.37,0,.63,1)";
       job.track.style.transform=`translateY(-${job.steps}em)`;
-      const done=()=>{
-        job.track.removeEventListener("transitionend",done);
+      const finish=()=>{
         const latest=((Number(job.cell.dataset.target)||0)%10+10)%10;
         job.track.style.transition="none";
-        job.track.innerHTML="";
-        const only=document.createElement("span");
-        only.textContent=String(latest);
-        job.track.appendChild(only);
+        job.track.innerHTML="<span>"+latest+"</span>";
         job.track.style.transform="translateY(0)";
         job.cell.dataset.current=String(latest);
       };
-      job.track.addEventListener("transitionend",done,{once:true});
-    });
-  };
-  requestAnimationFrame(()=>requestAnimationFrame(run));
+      job.track.addEventListener("transitionend",finish,{once:true});
+      setTimeout(()=>{
+        if(job.cell.dataset.current!==String(job.target))finish();
+      },Math.max(1005,end-now()));
+    }
+  }));
 }
 
 function updateRoll(target){
   const node=el("mainCounter");
   const rawTarget=Math.max(0,Math.floor(num(target)));
   const value=rawTarget.toLocaleString("en-US");
-  node.dataset.target=String(rawTarget);
   const currentValue=String(node.dataset.value||"");
-  const oldShown=num(node.dataset.display||currentValue.replace(/,/g,"")||rawTarget);
-  const currentDigits=[...currentValue].filter(ch=>/[0-9]/.test(ch)).length;
-  const nextDigits=[...value].filter(ch=>/[0-9]/.test(ch)).length;
-  const thisSecond=sec();
   if(!node.children.length){
-    buildRoll(rawTarget,rawTarget,false);
+    makeRollDom(value);
+    node.dataset.target=String(rawTarget);
     node.dataset.display=String(rawTarget);
-    rollLastAnimatedSecond=thisSecond;
     return;
   }
+  if(value===currentValue)return;
+  const oldDigits=[...currentValue].filter(ch=>/[0-9]/.test(ch)).length;
+  const newDigits=[...value].filter(ch=>/[0-9]/.test(ch)).length;
+  const thisSecond=sec();
   if(thisSecond===rollLastAnimatedSecond)return;
   rollLastAnimatedSecond=thisSecond;
-  if(currentDigits!==nextDigits){
-    buildRoll(rawTarget,oldShown,true);
-    return;
+  if(oldDigits!==newDigits){
+    const displayed=Number(String(node.dataset.display||currentValue.replace(/,/g,"" )||0));
+    makeRollDom(displayed.toLocaleString("en-US"));
+    node.dataset.display=String(displayed);
   }
-  const cells=[...node.children].filter(item=>item.classList.contains("roll-digit"));
+  const cells=[...node.children].filter(x=>x.classList.contains("roll-digit"));
   const digits=[...value].filter(ch=>/[0-9]/.test(ch)).map(Number);
   if(cells.length!==digits.length){
-    buildRoll(rawTarget,oldShown,true);
+    const shown=Number(node.dataset.display||0);
+    makeRollDom(shown.toLocaleString("en-US"));
     return;
   }
-  cells.forEach((cell,i)=>cell.dataset.target=String(digits[i]));
-  animateRollGroup(cells,digits);
+  node.dataset.target=String(rawTarget);
   node.dataset.value=value;
   node.dataset.display=String(rawTarget);
+  animateRollGroup(cells,digits);
 }
 
 function updateSmallNumber(id,value){
@@ -925,7 +914,6 @@ async function generateClicks(amount,rawDelta=0){
         const found=seconds.find(x=>num(x.second)===currentSecond);
         if(found)found.cps=value;
         else seconds.push({second:currentSecond,cps:value,at:currentSecond});
-        if(seconds.length>60)seconds=seconds.slice(0,60);
       }
     }).catch(err=>{
       console.error("[Clicklaborate CPS] second write failed",{code:err?.code,message:err?.message,error:err});
@@ -1246,7 +1234,6 @@ async function pollSuperChats(){
 async function sampleGlobalSecond(){
   if(!db)return;
   const s=sec()-1;
-  if(seconds.length>=60 && !seconds.some(x=>num(x.second)===s)) return;
   let pointCps=0;
   const tx=await runTransaction(ref(db,`seconds/${s}`),v=>{
     v=v||{};
