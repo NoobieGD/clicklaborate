@@ -240,7 +240,7 @@ button:disabled{cursor:not-allowed;opacity:.42}
 </style>
 </head>
 <body>
-<div class="version-label" aria-hidden="true">v1.5.3.1</div>
+<div class="version-label" aria-hidden="true">v1.5.4</div>
 <div id="joinModal" class="modal show">
   <div class="modal-card">
     <h2>Join Clicklaborate</h2>
@@ -702,6 +702,19 @@ function animateRollGroup(cells,digits){
   }));
   setTimeout(finishAll,1050);
   return true;
+}
+
+function resetRollDisplay(){
+  const node=el("mainCounter");
+  if(!node)return;
+  const target=Math.max(0,Math.floor(num(rollTarget)));
+  rollAnimating=false;
+  rollQueuedTarget=null;
+  rollDisplayValue=target;
+  makeRollDom(target.toLocaleString("en-US"));
+  node.dataset.display=String(target);
+  node.dataset.target=String(target);
+  node.dataset.value=target.toLocaleString("en-US");
 }
 
 function updateRoll(target,force=false){
@@ -1779,6 +1792,7 @@ function showView(view){
   el("statsView").classList.toggle("active",!home);
   if(!home)drawChart();
 }
+  if(id==="stats")renderMilestones();
 
 function openSidebar(){
   el("sidebar").classList.add("open");
@@ -1928,6 +1942,13 @@ if(name){
   shell.style.pointerEvents="auto";
   start();
 }
+window.addEventListener("pageshow",()=>{
+  setTimeout(resetRollDisplay,0);
+});
+document.addEventListener("visibilitychange",()=>{
+  if(document.visibilityState==="visible")setTimeout(resetRollDisplay,0);
+});
+
 requestAnimationFrame(animationTick);
 </script>
 </body>
