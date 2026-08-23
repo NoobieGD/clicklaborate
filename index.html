@@ -488,6 +488,7 @@ let currentCps=0;
 let sessionPeakCps=0;
 let fxRates={EUR:1};
 let fxLoadedAt=0;
+let appCheckReady=false;
 
 const el=id=>document.getElementById(id);
 const num=v=>Number(v||0);
@@ -941,8 +942,16 @@ async function flushClicks(){
     await generateClicks(generated,raw);
   }catch(err){
     queuedRaw+=raw;
-    console.error("[Clicklaborate Multiplayer] click sync failed",{code:err?.code,message:err?.message,error:err});
-    if(err?.code==="PERMISSION_DENIED")toast("Clicks were blocked by Firebase rules.");
+    console.error("[Clicklaborate Multiplayer] click sync failed",{
+      path:"game",
+      code:err?.code,
+      message:err?.message,
+      authUid:auth?.currentUser?.uid||null,
+      appCheckReady:!!appCheckReady,
+      error:err
+    });
+    if(err?.code==="PERMISSION_DENIED")toast("Firebase blocked the global click write. Check Realtime Database Rules.");
+    else toast("Global click sync failed. Check the console.");
   }finally{
     flushBusy=false;
     if(queuedRaw>0&&!flushTimer)flushTimer=setTimeout(()=>{flushTimer=0;flushClicks()},60);
@@ -1254,7 +1263,11 @@ function subscribe(){
     toast(`Firebase read failed: ${err?.code||"unknown error"}`);
   });
   watch("game",s=>{
-    const incoming=s.val()||{};
+    const incoming=s.val();
+    if(incoming===null){
+      console.warn("[Clicklaborate Firebase] game is missing or unreadable");
+      return;
+    }
     game={...game,...incoming};
     if(!game.upgrades)game.upgrades={};
     rollTarget=num(game.globalClicks);
@@ -1389,6 +1402,7 @@ async function start(){
       try{
         const tokenResult=await getAppCheckToken(appCheck,true);
         console.info(tag,"App Check token acquired",{tokenPresent:!!tokenResult?.token});
+        appCheckReady=!!tokenResult?.token;
       }catch(appCheckErr){
         console.error(tag,"App Check token exchange failed",{
           code:appCheckErr?.code,
@@ -1438,6 +1452,13 @@ async function start(){
       U.forEach(d=>upgrades[d[0]]=0);
       await set(ref(db,"game"),{globalClicks:0,totalGenerated:0,rawClicks:0,peakCps:0,upgrades,lastTick:now()});
       console.info(tag,"created initial game state");
+    }
+    try{
+      await runTransaction(ref(db,"game/globalClicks"),v=>num(v));
+      console.info(tag,"global click write permission ok");
+    }catch(writeErr){
+      console.error(tag,"global click write permission failed",{code:writeErr?.code,message:writeErr?.message,authUid:auth?.currentUser?.uid||null,appCheckReady,error:writeErr});
+      if(writeErr?.code==="PERMISSION_DENIED")toast("Firebase read works, but global click writes are denied by your Realtime Database Rules.");
     }
     sessionPeakCps=currentCps;
     subscribe();
