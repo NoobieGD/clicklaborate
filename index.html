@@ -1646,15 +1646,20 @@ async function sendChat(){
     toast("Chat muted for 5m: max 3 messages per second.");
     return;
   }
+
+  // Reserve this send synchronously so multiple rapid clicks cannot all pass
+  // the limit before their Firebase writes finish.
+  chatSentTimes.push(t);
+  chatLastSentAt=t;
+  localStorage.setItem("clicklaborate_chat_last_sent",String(t));
+  localStorage.setItem("clicklaborate_chat_sent_times",JSON.stringify(chatSentTimes));
   input.value="";
   try{
     await push(ref(db,"chat"),{name,uid,text,at:t,serverAt:serverTimestamp()});
-    chatLastSentAt=t;
-    chatSentTimes.push(t);
-    localStorage.setItem("clicklaborate_chat_last_sent",String(t));
-    localStorage.setItem("clicklaborate_chat_sent_times",JSON.stringify(chatSentTimes));
     await trimChat();
   }catch(err){
+    chatSentTimes=chatSentTimes.filter(x=>x!==t);
+    localStorage.setItem("clicklaborate_chat_sent_times",JSON.stringify(chatSentTimes));
     console.error("[Clicklaborate Chat] send failed",{code:err?.code,message:err?.message,error:err});
     toast(`Chat failed: ${err?.code||"unknown error"}`);
   }
@@ -1792,7 +1797,6 @@ function showView(view){
   el("statsView").classList.toggle("active",!home);
   if(!home)drawChart();
 }
-  if(id==="stats")renderMilestones();
 
 function openSidebar(){
   el("sidebar").classList.add("open");
