@@ -240,7 +240,7 @@ button:disabled{cursor:not-allowed;opacity:.42}
 </style>
 </head>
 <body>
-<div class="version-label" aria-hidden="true">v1.5.4</div>
+<div class="version-label" aria-hidden="true">v1.5.4.1</div>
 <div id="joinModal" class="modal show">
   <div class="modal-card">
     <h2>Join Clicklaborate</h2>
@@ -429,7 +429,7 @@ button:disabled{cursor:not-allowed;opacity:.42}
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
 import {getDatabase,ref,onValue,set,update,push,get,runTransaction,onDisconnect,query,orderByChild,limitToLast,remove,onChildAdded,onChildChanged,onChildRemoved,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-database.js";
-import {getAuth,signInAnonymously} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
+import {getAuth,signInAnonymously,setPersistence,browserLocalPersistence} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 import {initializeAppCheck,ReCaptchaEnterpriseProvider,getToken as getAppCheckToken} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app-check.js";
 
 const firebaseConfig={
@@ -1382,8 +1382,8 @@ async function initPresence(){
   const p=ref(db,`presence/${uid}`);
   const data={name,uid,online:true,lastSeen:now()};
   await set(p,data);
-  onDisconnect(p).remove();
-  setInterval(()=>update(p,{name,online:true,lastSeen:now()}),3000);
+  onDisconnect(p).update({online:false,lastSeen:serverTimestamp()});
+  setInterval(()=>update(p,{name,uid,online:true,lastSeen:now()}),3000);
 }
 
 function parseVideoId(url){
@@ -1847,14 +1847,32 @@ async function start(){
     }
     auth=getAuth(app);
     try{
-      await signInAnonymously(auth);
-      console.info(tag,"anonymous auth ok",auth.currentUser?.uid||"no uid");
+      try{await setPersistence(auth,browserLocalPersistence);}catch(persistErr){
+        console.warn(tag,"auth persistence setup failed; continuing with Firebase default",{code:persistErr?.code,message:persistErr?.message,error:persistErr});
+      }
+      if(!auth.currentUser) await signInAnonymously(auth);
+      const authUid=auth.currentUser?.uid||"";
+      if(!authUid) throw new Error("Firebase returned no anonymous uid");
+      console.info(tag,"anonymous auth ok",authUid);
     }catch(authErr){
       console.error(tag,"anonymous auth failed",{code:authErr?.code,message:authErr?.message,error:authErr});
       toast("Firebase auth failed. Check the console.");
       throw authErr;
     }
     db=getDatabase(app);
+    try{
+      const profileRef=ref(db,`profiles/${uid}`);
+      const profileSnap=await get(profileRef);
+      const profile=profileSnap.val();
+      if(!name && profile?.name){
+        name=String(profile.name).slice(0,24);
+        localStorage.setItem("clicklaborate_name",name);
+      }else if(name){
+        await update(profileRef,{name,uid,authUid:auth.currentUser?.uid||null,updatedAt:serverTimestamp()});
+      }
+    }catch(profileErr){
+      console.warn(tag,"profile restore failed; local account data will still be used",{code:profileErr?.code,message:profileErr?.message,error:profileErr});
+    }
     const offsetRef=ref(db,".info/serverTimeOffset");
     onValue(offsetRef,snap=>{serverTimeOffset=num(snap.val());});
     const connectedRef=ref(db,".info/connected");
