@@ -240,7 +240,7 @@ button:disabled{cursor:not-allowed;opacity:.42}
 </style>
 </head>
 <body>
-<div class="version-label" aria-hidden="true">v1.5.5</div>
+<div class="version-label" aria-hidden="true">v1.5.6</div>
 <div id="joinModal" class="modal show">
   <div class="modal-card">
     <h2>Join Clicklaborate</h2>
@@ -1249,13 +1249,18 @@ async function passiveTick(){
   }
 }
 
+function firebaseSafeKey(value){
+  const s=String(value??"").trim();
+  return s.replace(/[.#$\\[\\]\\/]/g,"_").slice(0,120) || "unknown";
+}
+
 async function proposeUpgrade(id){
   const d=U.find(x=>x[0]===id);
   if(!d)return;
   if(activeUsers()<3){toast("At least 3 people need to be online.");return}
   let storedCooldown=0;
   try{
-    const cooldownSnap=await get(ref(db,`proposal/cooldowns/${uid}`));
+    const cooldownSnap=await get(ref(db,`proposal/cooldowns/${firebaseSafeKey(uid)}`));
     storedCooldown=num(cooldownSnap.val()?.until||cooldownSnap.val());
   }catch(err){
     console.error("[Clicklaborate Vote] cooldown read failed",{code:err?.code,message:err?.message,error:err});
@@ -1316,39 +1321,84 @@ async function finishProposal(){
   if(!current?.active||num(current.endsAt)>now())return;
   finishingProposal=true;
   const pRef=ref(db,"proposal/current");
+
   try{
     const serverNowSnap=await get(ref(db,".info/serverTimeOffset"));
     const offset=num(serverNowSnap.val());
     const sharedNow=Date.now()+offset;
     if(sharedNow<num(current.endsAt))return;
-    const claim=await runTransaction(pRef,cur=>{
-      if(!cur?.active||cur.id!==current.id||cur.cancelable===true)return cur;
-      const t=Date.now()+offset;
-      if(t<num(cur.endsAt))return cur;
-      if(cur.finishingBy&&num(cur.finishingUntil)>t&&cur.finishingBy!==uid)return cur;
-      return {...cur,finishingBy:uid,finishingUntil:t+10000};
-    });
-    if(!claim.committed)return;
+
+    let claim=null;
+    for(let attempt=0;attempt<3;attempt++){
+      try{
+        claim=await runTransaction(pRef,cur=>{
+          if(!cur?.active||cur.id!==current.id||cur.cancelable===true)return cur;
+          const t=Date.now()+offset;
+          if(t<num(cur.endsAt))return cur;
+          if(cur.finishingBy&&num(cur.finishingUntil)>t&&cur.finishingBy!==uid)return cur;
+          return {...cur,finishingBy:uid,finishingUntil:t+8000};
+        });
+        break;
+      }catch(err){
+        if(err?.message!=="maxretry")throw err;
+        await new Promise(r=>setTimeout(r,250*(attempt+1)));
+      }
+    }
+
+    if(!claim?.committed)return;
+
     const claimed=claim.snapshot?.val?.();
     if(!claimed||claimed.finishingBy!==uid)return;
-    const decision=await runTransaction(pRef,cur=>{
-      if(!cur?.active||cur.id!==current.id||cur.finishingBy!==uid)return cur;
-      const t=Date.now()+offset;
-      if(t<num(cur.endsAt))return cur;
-      const yes=num(cur.yes),no=num(cur.no);
-      const passed=yes>no;
-      return {...cur,active:false,locked:true,cancelable:false,resolved:true,passed,tie:yes===no,resolvedAt:t,cooldownUntil:t+60000,finishingBy:null,finishingUntil:null};
-    });
-    if(!decision.committed)return;
+
+    let decision=null;
+    for(let attempt=0;attempt<3;attempt++){
+      try{
+        decision=await runTransaction(pRef,cur=>{
+          if(!cur?.active||cur.id!==current.id||cur.finishingBy!==uid)return cur;
+          const t=Date.now()+offset;
+          if(t<num(cur.endsAt))return cur;
+          const yes=num(cur.yes),no=num(cur.no);
+          const passed=yes>no;
+          return {
+            ...cur,
+            active:false,
+            locked:true,
+            cancelable:false,
+            resolved:true,
+            passed,
+            tie:yes===no,
+            resolvedAt:t,
+            cooldownUntil:t+60000,
+            finishingBy:null,
+            finishingUntil:null
+          };
+        });
+        break;
+      }catch(err){
+        if(err?.message!=="maxretry")throw err;
+        await new Promise(r=>setTimeout(r,250*(attempt+1)));
+      }
+    }
+
+    if(!decision?.committed)return;
+
     const decided=decision.snapshot?.val?.();
     if(!decided)return;
-    const proposerUid=typeof decided.startedByUid==="string"&&/^[A-Za-z0-9_-]+$/.test(decided.startedByUid)?decided.startedByUid:null;
+
+    const proposerUid=typeof decided.startedByUid==="string" ? decided.startedByUid.trim() : "";
     if(proposerUid){
+      const safeProposerUid=firebaseSafeKey(proposerUid);
       const until=num(decided.cooldownUntil)||sharedNow+60000;
-      try{await update(ref(db,`proposal/cooldowns/${proposerUid}`),{until})}
-      catch(err){console.error("[Clicklaborate Vote] cooldown write failed",{code:err?.code,message:err?.message,uid:proposerUid,error:err})}
+      try{
+        await set(ref(db,`proposal/cooldowns/${safeProposerUid}`),{until,uid:proposerUid});
+      }catch(err){
+        console.error("[Clicklaborate Vote] cooldown write failed",{
+          code:err?.code,message:err?.message,uid:proposerUid,safeKey:safeProposerUid,error:err
+        });
+      }
       if(proposerUid===uid)proposalCooldownUntil=Math.max(proposalCooldownUntil,until);
     }
+
     if(!decided.passed){
       proposal=null;
       renderProposal();
@@ -1356,6 +1406,7 @@ async function finishProposal(){
       toast(decided.tie?"Vote finished: Tie. Upgrade not applied.":"Vote finished: No wins.");
       return;
     }
+
     const stateTx=await runTransaction(ref(db,"game"),cur=>{
       cur=cur||{};
       if(num(cur.globalClicks)<num(decided.cost))return cur;
@@ -1364,6 +1415,7 @@ async function finishProposal(){
       cur.upgrades[decided.upgradeId]=num(cur.upgrades[decided.upgradeId])+1;
       return cur;
     });
+
     if(stateTx.committed){
       proposal=null;
       renderProposal();
@@ -1376,8 +1428,16 @@ async function finishProposal(){
       toast("Vote passed, but there weren't enough global clicks left.");
     }
   }catch(err){
-    console.error("[Clicklaborate Vote] finish failed",{code:err?.code,message:err?.message,error:err});
-    toast(err?.code==="PERMISSION_DENIED"?"Firebase blocked the vote result.":"Vote result failed.");
+    console.error("[Clicklaborate Vote] finish failed",{
+      code:err?.code,message:err?.message,error:err
+    });
+    if(err?.message==="Invalid token in path"){
+      toast("Vote data contained an invalid path value and was ignored.");
+    }else{
+      toast("Vote result failed.");
+    }
+  }finally{
+    finishingProposal=false;
   }
 }
 
