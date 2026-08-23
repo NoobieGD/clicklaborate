@@ -537,12 +537,12 @@ function totalUpgradeLevels(){
 }
 
 let rollLastAnimatedSecond=0;
+let rollDisplayValue=0;
 
 function makeRollDom(value){
   const node=el("mainCounter");
   node.innerHTML="";
   const cells=[];
-  let i=0;
   for(const ch of value){
     if(!/[0-9]/.test(ch)){
       const mark=document.createElement("span");
@@ -563,7 +563,6 @@ function makeRollDom(value){
     cell.appendChild(track);
     node.appendChild(cell);
     cells.push(cell);
-    i++;
   }
   node.dataset.value=value;
   return cells;
@@ -593,22 +592,20 @@ function animateRollGroup(cells,digits){
   }
   if(!jobs.length)return;
   requestAnimationFrame(()=>requestAnimationFrame(()=>{
-    const end=now()+1000;
     for(const job of jobs){
       if(!job.cell.isConnected)continue;
       job.track.style.transition="transform 1000ms cubic-bezier(.37,0,.63,1)";
       job.track.style.transform=`translateY(-${job.steps}em)`;
       const finish=()=>{
         const latest=((Number(job.cell.dataset.target)||0)%10+10)%10;
+        job.track.removeEventListener("transitionend",finish);
         job.track.style.transition="none";
         job.track.innerHTML="<span>"+latest+"</span>";
         job.track.style.transform="translateY(0)";
         job.cell.dataset.current=String(latest);
       };
       job.track.addEventListener("transitionend",finish,{once:true});
-      setTimeout(()=>{
-        if(job.cell.dataset.current!==String(job.target))finish();
-      },Math.max(1005,end-now()));
+      setTimeout(()=>finish(),1050);
     }
   }));
 }
@@ -616,36 +613,44 @@ function animateRollGroup(cells,digits){
 function updateRoll(target){
   const node=el("mainCounter");
   const rawTarget=Math.max(0,Math.floor(num(target)));
-  const value=rawTarget.toLocaleString("en-US");
-  const currentValue=String(node.dataset.value||"");
+  const targetText=rawTarget.toLocaleString("en-US");
+  const currentText=rollDisplayValue.toLocaleString("en-US");
   if(!node.children.length){
-    makeRollDom(value);
+    rollDisplayValue=rawTarget;
+    makeRollDom(targetText);
     node.dataset.target=String(rawTarget);
     node.dataset.display=String(rawTarget);
     return;
   }
-  if(value===currentValue)return;
-  const oldDigits=[...currentValue].filter(ch=>/[0-9]/.test(ch)).length;
-  const newDigits=[...value].filter(ch=>/[0-9]/.test(ch)).length;
+  if(rawTarget===rollDisplayValue)return;
   const thisSecond=sec();
   if(thisSecond===rollLastAnimatedSecond)return;
   rollLastAnimatedSecond=thisSecond;
-  if(oldDigits!==newDigits){
-    const displayed=Number(String(node.dataset.display||currentValue.replace(/,/g,"" )||0));
-    makeRollDom(displayed.toLocaleString("en-US"));
-    node.dataset.display=String(displayed);
+
+  const currentDigits=[...currentText].filter(ch=>/[0-9]/.test(ch)).length;
+  const nextDigits=[...targetText].filter(ch=>/[0-9]/.test(ch)).length;
+  if(currentDigits!==nextDigits){
+    const cells=makeRollDom(currentText);
+    const digits=[...targetText].filter(ch=>/[0-9]/.test(ch)).map(Number);
+    const targetCells=makeRollDom(targetText);
+    for(let i=0;i<targetCells.length;i++){
+      const from=[...currentText].filter(ch=>/[0-9]/.test(ch));
+      const idx=from.length-targetCells.length+i;
+      const d=idx>=0?Number(from[idx]):0;
+      targetCells[i].dataset.current=String(d);
+      targetCells[i].querySelector(".roll-track").innerHTML="<span>"+d+"</span>";
+    }
+    animateRollGroup(targetCells,digits);
+  }else{
+    const cells=[...node.children].filter(x=>x.classList.contains("roll-digit"));
+    const digits=[...targetText].filter(ch=>/[0-9]/.test(ch)).map(Number);
+    if(cells.length!==digits.length)return;
+    animateRollGroup(cells,digits);
+    node.dataset.value=targetText;
   }
-  const cells=[...node.children].filter(x=>x.classList.contains("roll-digit"));
-  const digits=[...value].filter(ch=>/[0-9]/.test(ch)).map(Number);
-  if(cells.length!==digits.length){
-    const shown=Number(node.dataset.display||0);
-    makeRollDom(shown.toLocaleString("en-US"));
-    return;
-  }
+  rollDisplayValue=rawTarget;
   node.dataset.target=String(rawTarget);
-  node.dataset.value=value;
   node.dataset.display=String(rawTarget);
-  animateRollGroup(cells,digits);
 }
 
 function updateSmallNumber(id,value){
