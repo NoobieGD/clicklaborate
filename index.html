@@ -569,12 +569,16 @@ function buildRoll(target,fromValue=null){
     track.style.transform="translateY(0)";
     cell.appendChild(track);
     node.appendChild(cell);
-    if(fromValue!=null&&fromDigit!==toDigit)animateRollCell(cell,toDigit);
     di++;
   }
   node.dataset.value=value;
   node.dataset.target=String(Math.max(0,Math.floor(num(target))));
   if(fromValue==null)node.dataset.display=String(Math.max(0,Math.floor(num(target))));
+  if(fromValue!=null){
+    const builtCells=[...node.children].filter(x=>x.classList.contains("roll-digit"));
+    const builtDigits=builtCells.map(x=>Number(x.dataset.target||0));
+    animateRollGroup(builtCells,builtDigits);
+  }
 }
 
 function animateRollGroup(cells,digits){
