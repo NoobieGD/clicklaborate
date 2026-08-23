@@ -1,0 +1,1430 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Clicklaborate</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@400;500;600;700;800&family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#080808;
+  --panel:#0e0e0e;
+  --panel2:#121212;
+  --panel3:#171717;
+  --line:#292929;
+  --text:#f3f3f3;
+  --muted:#8d8d8d;
+  --good:#66ce85;
+  --bad:#e07373;
+  --warn:#e8bd64;
+  --white:#f6f6f6;
+  --shadow:0 18px 50px rgba(0,0,0,.34);
+  --side:310px;
+  --speed:260ms;
+  --sine:cubic-bezier(.37,0,.63,1);
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text)}
+body{font-family:"Readex Pro",ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;overflow-x:hidden}
+button,input{font:inherit}
+button{cursor:pointer}
+button:disabled{cursor:not-allowed;opacity:.42}
+.app{min-height:100vh;display:none;grid-template-columns:var(--side) 1fr;visibility:hidden;opacity:0;pointer-events:none}
+.sidebar{
+  position:sticky;top:0;height:100vh;overflow:auto;
+  border-right:1px solid var(--line);background:#0a0a0a;
+  padding:18px 16px;z-index:40;
+}
+.sidebar-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
+.brand{font-weight:800;letter-spacing:-.02em}
+.sidebar-close{display:none}
+.side-block{padding:0 0 16px;margin:0 0 16px;border-bottom:1px solid var(--line)}
+.side-metrics{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.side-metric{min-width:0}
+
+.label{font-size:.69rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.value{font-weight:700}
+.sub{font-size:.78rem;line-height:1.45;color:var(--muted);margin-top:4px}
+.online-line{display:flex;align-items:center;gap:8px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--good);flex:none}
+.sidebar-actions{display:grid;gap:8px;margin-bottom:18px}
+.btn{
+  appearance:none;border:1px solid var(--line);background:var(--panel2);color:var(--text);
+  border-radius:12px;padding:10px 12px;font-weight:700;
+  transition:background var(--speed) var(--sine),border-color var(--speed) var(--sine),transform var(--speed) var(--sine),opacity var(--speed) var(--sine)
+}
+.btn:hover{background:var(--panel3);border-color:#363636;transform:translateY(-1px)}
+.btn.primary{background:var(--white);border-color:var(--white);color:#070707}
+.btn.small{padding:8px 10px;font-size:.8rem}
+.btn.ghost{background:transparent}
+.upgrade-side{
+  overflow:hidden;
+  max-height:1700px;
+  opacity:1;
+  transform:translateY(0);
+  transition:max-height 420ms var(--sine),opacity 300ms var(--sine),transform 420ms var(--sine),margin 420ms var(--sine)
+}
+.upgrade-side.hidden{max-height:0;opacity:0;transform:translateY(-12px);margin:0}
+.upgrade-list{display:grid;gap:8px;max-height:min(46vh,560px);overflow-y:auto;overflow-x:hidden;padding:5px 5px 5px 0;border:1px solid var(--line);border-radius:12px;background:#0b0b0b;scrollbar-width:thin}
+.upgrade{
+  border:1px solid var(--line);background:#0d0d0d;border-radius:13px;padding:11px;
+}
+.up-top{display:flex;justify-content:space-between;gap:8px;align-items:start}
+.up-name{font-size:.86rem;font-weight:750}
+.up-level{font-size:.72rem;color:var(--muted);white-space:nowrap}
+.up-desc{font-size:.73rem;color:var(--muted);line-height:1.4;margin:5px 0 6px}
+.up-effect{font-family:"Roboto",Arial,sans-serif;font-size:.72rem;font-weight:800;color:#d8d8d8;margin:0 0 9px}
+.up-bottom{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.cost{font-family:"Roboto",Arial,sans-serif;font-variant-numeric:tabular-nums;font-weight:800;font-size:.78rem}
+.up-actions{display:flex;gap:6px}
+.main{min-width:0;padding:20px 28px 46px}
+.topbar{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:30px}
+.top-title{font-weight:750}
+.top-actions{display:flex;gap:8px;flex-wrap:wrap}
+.chip{font-family:"Roboto",Arial,sans-serif;border:1px solid var(--line);background:#0d0d0d;border-radius:999px;padding:8px 11px;font-size:.78rem;color:#d5d5d5;font-variant-numeric:tabular-nums}
+.center{width:min(980px,100%);margin:0 auto}
+.page-title{text-align:center;font-size:clamp(1.7rem,3.2vw,2.7rem);margin:0;font-weight:850;letter-spacing:-.03em}
+.page-desc{text-align:center;color:var(--muted);margin:7px auto 22px;font-size:.9rem;max-width:60ch}
+.counter-card{
+  border:1px solid var(--line);background:var(--panel);border-radius:19px;padding:32px 18px 24px;text-align:center;box-shadow:var(--shadow)
+}
+.counter-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.11em;color:var(--muted)}
+.roll{
+  margin-top:14px;display:flex;justify-content:center;align-items:center;
+  line-height:1;font-family:"Roboto",Arial,sans-serif;font-weight:900;
+  font-size:clamp(3.2rem,9vw,7rem);font-variant-numeric:tabular-nums;
+  overflow:hidden;white-space:nowrap;min-height:1em
+}
+.roll-digit{position:relative;display:inline-block;width:.61em;height:1em;overflow:hidden}
+.roll-track{position:absolute;left:0;top:0;display:flex;flex-direction:column;will-change:transform;transition:transform 1000ms cubic-bezier(.37,0,.63,1)}
+.roll-track span{height:1em;display:grid;place-items:center}
+.roll-comma,.roll-dot{display:inline-flex;align-items:flex-end;justify-content:center;width:.26em}
+.click-row{display:flex;justify-content:center;margin-top:22px}
+.click{
+  min-width:190px;border:1px solid var(--white);background:var(--white);color:#080808;border-radius:999px;
+  padding:15px 24px;font-weight:800;transition:transform 110ms ease,filter var(--speed) ease
+}
+.click:hover{filter:brightness(1.04)}
+.click:active{transform:scale(.985)}
+.rate-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:12px}
+.rate{border:1px solid var(--line);background:#0c0c0c;border-radius:13px;padding:11px 12px;text-align:center;min-width:0}
+.rate-v{font-family:"Roboto",Arial,sans-serif;font-weight:850;font-size:1.05rem;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rate-l{margin-top:3px;color:var(--muted);font-size:.69rem}
+.workspace{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(260px,.65fr);gap:12px;margin-top:14px;align-items:start}
+.panel{border:1px solid var(--line);background:var(--panel);border-radius:16px;padding:15px;min-width:0}
+.panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.panel h2{font-size:.98rem;margin:0}
+.panel-note{color:var(--muted);font-size:.73rem}
+.milestones{display:grid;gap:7px;margin-top:12px;max-height:420px;overflow:auto}
+.milestone{
+  display:grid;grid-template-columns:auto 1fr auto;gap:9px;align-items:center;
+  border:1px solid var(--line);background:#0b0b0b;border-radius:12px;padding:9px 10px
+}
+.milestone.reached{border-color:#394c3e}
+.ms-icon{font-size:.8rem}
+.ms-num{font-family:"Roboto",Arial,sans-serif;font-weight:850;font-variant-numeric:tabular-nums}
+.ms-who{font-size:.74rem;color:#c8c8c8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.view{display:none}
+.view.active{display:block}
+.stats-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:14px}
+.stat{
+  border:1px solid var(--line);background:var(--panel);border-radius:14px;padding:12px;min-width:0
+}
+.stat-v{font-family:"Roboto",Arial,sans-serif;font-size:1.28rem;font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stat-l{font-size:.71rem;color:var(--muted);margin-top:3px}
+.stats-block{margin-top:12px}
+.chart{height:170px;border:1px solid var(--line);border-radius:12px;background:#0b0b0b;overflow:hidden;margin-top:11px}
+.chart canvas{width:100%;height:100%;display:block}
+.chart{position:relative}.chart-tip{position:absolute;display:none;pointer-events:none;z-index:2;padding:7px 9px;border:1px solid #3a3a3a;border-radius:8px;background:#0a0a0a;color:#fff;font-family:"Roboto",Arial,sans-serif;font-size:.75rem;white-space:nowrap;box-shadow:0 8px 20px rgba(0,0,0,.28)}
+.sc-wrap{display:grid;gap:10px;margin-top:11px}
+ .sc-row{display:flex;justify-content:space-between;gap:12px;align-items:center;border:1px solid var(--line);background:#0b0b0b;border-radius:11px;padding:9px 10px}
+.sc-card{border:0;border-radius:16px;padding:12px 12px 10px;box-shadow:none;color:#111;display:grid;gap:8px}
+.sc-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.sc-user{display:flex;align-items:center;gap:9px;min-width:0}
+.sc-pfp{width:32px;height:32px;border-radius:50%;display:block;object-fit:cover;background:#222;flex:none}
+.sc-username{font-weight:800;font-size:.83rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sc-money{font-family:"Roboto",Arial,sans-serif;font-weight:900;font-size:.86rem;white-space:nowrap}
+.sc-message{font-size:.86rem;line-height:1.35;min-height:1.15em;word-break:break-word}
+.sc-bottom{display:flex;justify-content:space-between;gap:10px;align-items:center;font-family:"Roboto",Arial,sans-serif;font-weight:800;font-size:.75rem}
+.sc-name{font-weight:700;font-size:.8rem}
+.sc-amount{font-family:"Roboto",Arial,sans-serif;font-weight:850;font-size:.82rem}
+.sc-empty{font-size:.78rem;color:var(--muted);padding:8px}
+.input{width:100%;border:1px solid var(--line);background:#0c0c0c;color:var(--text);border-radius:11px;padding:10px 11px;outline:none}
+.input:focus{border-color:#444}
+.proposal{
+  position:fixed;left:16px;bottom:16px;width:min(620px,calc(100vw - 32px));
+  z-index:60;background:#0b0b0b;border:1px solid var(--line);border-radius:17px;box-shadow:var(--shadow);
+  opacity:0;transform:translateY(18px);pointer-events:none;
+  transition:opacity 260ms var(--sine),transform 260ms var(--sine)
+}
+.proposal.show{opacity:1;transform:translateY(0);pointer-events:auto}
+.proposal-head{display:grid;grid-template-columns:52px 1fr;gap:11px;align-items:center;padding:13px;border-bottom:1px solid var(--line)}
+.proposal-icon{width:52px;height:52px;border:1px solid var(--line);border-radius:13px;display:grid;place-items:center;background:#111;font-size:1.35rem}
+.proposal-title{font-size:.92rem;font-weight:800;margin:0}
+.proposal-sub{font-size:.76rem;color:var(--muted);margin:3px 0 0;line-height:1.4}
+.vote-wrap{padding:12px}
+.vote-bar{height:58px;border:1px solid var(--line);border-radius:13px;display:flex;overflow:hidden;position:relative;background:#111}
+.vote-yes,.vote-no{height:100%;transition:width 260ms var(--sine)}
+.vote-yes{background:#5aa66d}.vote-no{background:#a85e5e}
+.vote-count{position:absolute;top:50%;transform:translateY(-50%);font-family:"Roboto",Arial,sans-serif;font-weight:900;font-size:1.25rem}
+.vote-count.yes{right:10px;color:#07170c}.vote-count.no{left:10px;color:#1b0606}
+.vote-meta{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;margin-top:9px}
+.vote-info{font-size:.74rem;color:var(--muted)}
+.vote-actions{display:flex;gap:6px}
+.toast{
+  position:fixed;left:50%;bottom:20px;transform:translateX(-50%) translateY(12px);opacity:0;pointer-events:none;z-index:80;
+  border:1px solid var(--line);background:#0b0b0b;border-radius:12px;padding:10px 13px;font-size:.8rem;box-shadow:var(--shadow);
+  transition:opacity 200ms ease,transform 200ms ease;max-width:calc(100vw - 28px);text-align:center
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.modal{
+  position:fixed;inset:0;background:var(--bg);display:none;align-items:center;justify-content:center;
+  padding:16px;z-index:100
+}
+.modal.show{display:flex}
+.modal-card{width:min(420px,100%);background:#0b0b0b;border:1px solid var(--line);border-radius:17px;padding:18px;box-shadow:var(--shadow)}
+.modal h2{margin:0 0 7px;font-size:1.12rem}
+.modal p{margin:0;color:var(--muted);font-size:.8rem;line-height:1.5}
+.modal-actions{display:flex;gap:7px;margin-top:12px}
+.overlay{display:none}
+@media(max-width:1050px){
+  :root{--side:275px}
+  .workspace{grid-template-columns:1fr}
+  .stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:820px){
+  .app{display:block}
+  .sidebar{
+    position:fixed;left:0;top:0;bottom:0;width:min(320px,88vw);height:100vh;
+    transform:translateX(-102%);transition:transform 360ms var(--sine);box-shadow:var(--shadow)
+  }
+  .sidebar.open{transform:translateX(0)}
+  .sidebar-close{display:block}
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.54);z-index:35;opacity:0;pointer-events:none;display:block;transition:opacity 280ms var(--sine)}
+  .overlay.show{opacity:1;pointer-events:auto}
+  .main{padding:16px 14px 36px}
+  .topbar{margin-bottom:21px}
+  .topbar:before{content:"";display:block}
+  .menu-mobile{display:inline-flex!important}
+  .rate-row{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:560px){
+  .top-actions{display:none}
+  .sidebar{width:min(340px,92vw);padding:15px 13px}
+  .upgrade-list{max-height:42vh}
+  .counter-card{border-radius:16px}
+  .rate-row{gap:7px}
+  .rate{padding:10px 8px}
+  .roll{letter-spacing:-.04em}
+  .page-title{font-size:1.7rem}
+  .counter-card{padding:26px 12px 20px}
+  .roll{font-size:clamp(2.7rem,14vw,5rem)}
+  .click{min-width:170px}
+  .stats-grid{grid-template-columns:1fr}
+  .proposal{left:10px;bottom:10px;width:calc(100vw - 20px)}
+  .vote-meta{align-items:stretch}
+  .vote-actions{width:100%}
+  .vote-actions .btn{flex:1}
+}
+.menu-mobile{display:none}
+</style>
+</head>
+<body>
+<div id="joinModal" class="modal show">
+  <div class="modal-card">
+    <h2>Join Clicklaborate</h2>
+    <p>Pick a name. It is only used for your shared presence and stats.</p>
+    <input id="nameInput" class="input" maxlength="24" autocomplete="nickname" placeholder="Username">
+    <div class="modal-actions"><button id="joinButton" class="btn primary" style="flex:1">Enter</button></div>
+  </div>
+</div>
+
+<div id="mobileShade" class="overlay"></div>
+
+<div class="app">
+  <aside id="sidebar" class="sidebar">
+    <div class="sidebar-head">
+      <div class="brand">Clicklaborate</div>
+      <button id="sidebarClose" class="btn small sidebar-close">Close</button>
+    </div>
+
+    <div class="side-block">
+      <div class="label">User</div>
+      <div id="sideName" class="value">—</div>
+      <div class="sub" id="connectionText">Connecting</div>
+    </div>
+
+    <div class="side-block">
+      <div class="label">Online</div>
+      <div class="online-line"><span class="dot"></span><span id="sideOnline" class="value">0</span></div>
+      <div class="sub">3 online are needed to start an upgrade vote.</div>
+    </div>
+
+    <div class="sidebar-actions">
+      <button id="upgradesToggle" class="btn">Upgrades</button>
+      <button id="statsButton" class="btn">Stats</button>
+      <button id="mobileMenuClose" class="btn menu-mobile">Close menu</button>
+    </div>
+
+    <div class="side-block side-metrics" style="margin-top:18px">
+      <div class="side-metric">
+        <div class="label">Your CPS</div>
+        <div id="sideCps" class="value">0</div>
+        <div class="sub" id="sideRaw">0 raw clicks</div>
+      </div>
+      <div class="side-metric">
+        <div class="label">Combo</div>
+        <div id="sideCombo" class="value">0</div>
+        <div class="sub">resets after 1s</div>
+      </div>
+    </div>
+
+    <div id="upgradeSide" class="upgrade-side">
+      <div class="label">Upgrades</div>
+      <div id="sidebarUpgradeList" class="upgrade-list"></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <button id="mobileMenu" class="btn small menu-mobile">Menu</button>
+      <div class="top-title">Shared counter</div>
+      <div class="top-actions">
+        <div class="chip"><span id="topCps">0</span> CPS</div>
+        <div class="chip"><span id="topOnline">0</span> online</div>
+      </div>
+    </div>
+
+    <section id="homeView" class="view active">
+      <div class="center">
+        <h1 class="page-title">Clicklaborate</h1>
+        <p class="page-desc">Everybody adds to one dumbly large number.</p>
+
+        <div class="counter-card">
+          <div class="counter-label">Global clicks</div>
+          <div id="mainCounter" class="roll">0</div>
+          <div class="click-row"><button id="clickButton" class="click">Click</button></div>
+        </div>
+
+        <div class="rate-row">
+          <div class="rate"><div id="globalCps" class="rate-v">0</div><div class="rate-l">Clicks / second</div></div>
+          <div class="rate"><div id="globalMinute" class="rate-v">0</div><div class="rate-l">Clicks / minute</div></div>
+          <div class="rate"><div id="yourCps" class="rate-v">0</div><div class="rate-l">Your CPS</div></div>
+        </div>
+
+        <div class="workspace">
+          <section class="panel">
+            <div class="panel-head"><h2>Extra stats</h2><div class="panel-note">shared</div></div>
+            <div class="stats-grid" style="margin-top:11px">
+              <div class="stat"><div id="homeRaw" class="stat-v">0</div><div class="stat-l">Raw clicks</div></div>
+              <div class="stat"><div id="homeBonus" class="stat-v">0</div><div class="stat-l">Bonus clicks</div></div>
+              <div class="stat"><div id="homeUpgrades" class="stat-v">0</div><div class="stat-l">Upgrade levels</div></div>
+              <div class="stat"><div id="homeDonorClicks" class="stat-v">0</div><div class="stat-l">Clicks from support</div></div>
+            </div>
+          </section>
+          <section class="panel">
+            <div class="panel-head"><h2>Recent support</h2><div class="panel-note">shared</div></div>
+            <div id="recentSuperChats" class="sc-wrap" style="margin-top:11px"></div>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <section id="statsView" class="view">
+      <div class="center">
+        <div class="panel-head">
+          <div><h2 style="font-size:1.35rem;margin:0">Stats</h2><div class="sub">Everything here comes from the shared database.</div></div>
+          <button id="backButton" class="btn small">Back</button>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat"><div id="statGlobal" class="stat-v">0</div><div class="stat-l">Global clicks</div></div>
+          <div class="stat"><div id="statGenerated" class="stat-v">0</div><div class="stat-l">Total generated</div></div>
+          <div class="stat"><div id="statCps" class="stat-v">0</div><div class="stat-l">Current CPS</div></div>
+          <div class="stat"><div id="statPeak" class="stat-v">0</div><div class="stat-l">All-time peak CPS</div></div>
+          <div class="stat"><div id="statSessionPeak" class="stat-v">0</div><div class="stat-l">Session peak CPS</div></div>
+          <div class="stat"><div id="statOnline" class="stat-v">0</div><div class="stat-l">Online now</div></div>
+          <div class="stat"><div id="statUpgradeCount" class="stat-v">0</div><div class="stat-l">Upgrade levels</div></div>
+          <div class="stat"><div id="statScRevenue" class="stat-v">€0.00</div><div class="stat-l">Global support revenue</div></div>
+          <div class="stat"><div id="statScCount" class="stat-v">0</div><div class="stat-l">Support events</div></div>
+        </div>
+
+        <div class="panel stats-block">
+          <div class="panel-head"><h2>CPS history</h2><div class="panel-note">last 60 seconds</div></div>
+          <div class="chart"><canvas id="cpsChart"></canvas><div id="chartTip" class="chart-tip"></div></div>
+        </div>
+
+        <div class="panel stats-block">
+          <div class="panel-head"><h2>Recent Super Chats</h2><div class="panel-note">shared events</div></div>
+          <div id="statsSuperChats" class="sc-wrap"></div>
+        </div>
+
+        <div class="panel stats-block">
+          <div class="panel-head"><h2>Milestones</h2><div class="panel-note">first person to cross it</div></div>
+          <div id="statsMilestones" class="milestones"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="proposal" class="proposal">
+  <div class="proposal-head">
+    <div id="proposalIcon" class="proposal-icon">🛒</div>
+    <div>
+      <div id="proposalTitle" class="proposal-title">Upgrade vote</div>
+      <div id="proposalSub" class="proposal-sub">—</div>
+    </div>
+  </div>
+  <div class="vote-wrap">
+    <div class="vote-bar">
+      <div id="yesFill" class="vote-yes" style="width:50%"></div>
+      <div id="noFill" class="vote-no" style="width:50%"></div>
+      <div id="yesCount" class="vote-count yes">0</div>
+      <div id="noCount" class="vote-count no">0</div>
+    </div>
+    <div class="vote-meta">
+      <div id="voteInfo" class="vote-info">Waiting for votes.</div>
+      <div class="vote-actions">
+        <button id="voteYes" class="btn small">Yes</button>
+        <button id="voteNo" class="btn small">No</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
+import {getDatabase,ref,onValue,set,update,push,get,runTransaction,onDisconnect} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-database.js";
+import {getAuth,signInAnonymously} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
+import {initializeAppCheck,ReCaptchaV3Provider,getToken as getAppCheckToken} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app-check.js";
+
+const decodeKey=a=>String.fromCharCode(...a);
+const firebaseConfig={
+  apiKey:decodeKey([65,73,122,97,83,121,68,85,116,117,70,97,56,97,115,76,49,120,71,98,84,75,118,117,57,115,45,51,67,117,82,79,68,66,70,66,118,89]),
+  authDomain:"pixel-propbo-s-canvas.firebaseapp.com",
+  databaseURL:"https://pixel-propbo-s-canvas-default-rtdb.firebaseio.com",
+  projectId:"pixel-propbo-s-canvas",
+  storageBucket:"pixel-propbo-s-canvas.firebasestorage.app",
+  messagingSenderId:"154237870577",
+  appId:"1:154237870577:web:aa5f24145d00e9c8502450"
+};
+
+const YOUTUBE_API_KEY=decodeKey([65,73,122,97,83,121,68,66,72,45,82,77,121,80,98,49,78,52,118,116,84,68,110,113,108,57,45,97,105,51,95,56,109,111,69,117,70,89]);
+const APP_CHECK_KEY=decodeKey([54,76,102,78,76,112,81,116,65,65,65,65,65,76,69,70,101,66,80,81,48,122,97,57,88,115,53,106,57,52,76,83,100,50,78,53,78,119]);
+const CLICK_PER_CURRENCY_UNIT=1000;
+const VOTE_SECONDS=30;
+const POLLER_LEASE_MS=14000;
+const MILESTONES=[1,100,500,1000,5000,10000,25000,50000,100000,200000,500000,1000000,2000000,5000000,10000000];
+
+const U=[
+  ["clickPower","Strong Finger","Each click gives a bit more.",70000,2.72,"clickPower",1,"👍"],
+  ["passiveRate","Lazy Clicks","Adds a little CPS without pressing anything.",110000,2.78,"passive",0.45,"😴"],
+  ["combo","Combo Thing","Keeps a small bonus going when people click a lot.",170000,2.82,"combo",0.012,"🔗"],
+  ["offlineBank","Old PC","Keeps some passive progress while the room is empty.",250000,2.88,"offline",1,"💻"],
+  ["critHand","Lucky One","A few clicks randomly hit twice as hard.",360000,2.92,"crit",0.02,"🍀"],
+  ["groupPulse","Group Stuff","More people online means a slightly better global rate.",500000,2.96,"group",0.014,"👥"],
+  ["rawBoost","Click Buff","Raw clicks get a small extra multiplier.",690000,3.0,"rawBoost",0.02,"📈"],
+  ["doubleTap","Double Click","Sometimes one click turns into two.",930000,3.04,"double",0.013,"2️⃣"],
+  ["minuteHand","Time Buff","Longer sessions slowly improve passive output.",1250000,3.08,"time",0.005,"⏱️"],
+  ["clickTax","Refund","Gives a little extra back from every batch.",1650000,3.12,"refund",0.028,"💸"],
+  ["cheapHeat","Hotkeys","Recent clicking keeps a small bonus alive.",2150000,3.16,"heat",0.012,"⌨️"],
+  ["globalPulse","Global Clicks","Adds a small shared passive stream.",2800000,3.2,"globalPassive",0.16,"🌐"],
+  ["burstCap","Burst","Every batch gets a small extra push.",3600000,3.24,"burst",0.055,"💥"],
+  ["offlineVault","Battery","Long offline gaps pay a bit better.",4600000,3.28,"offlineMult",1.05,"🔋"],
+  ["votePower","Vote Weight","Your upgrade vote gets a little more weight.",5850000,3.32,"vote",0.01,"🗳️"],
+  ["slowBurn","Free CPS","Adds flat CPS on top of the normal passive rate.",7400000,3.36,"passiveFlat",0.7,"➕"],
+  ["chain","Click Chain","Small chains make the next batches better.",9300000,3.4,"chain",0.007,"⛓️"],
+  ["backPressure","Missed Clicks","Missed batches get a tiny bonus instead of feeling wasted.",11600000,3.44,"backspace",0.009,"↩️"],
+  ["crowdNoise","More People","Every online player adds a little global CPS.",14400000,3.48,"crowd",0.07,"📢"],
+  ["milestoneLuck","Milestone Buff","Reached milestones add a small permanent bonus.",17600000,3.52,"milestoneMult",0.012,"🏁"],
+  ["sideways","Side Stream","Some output gets copied into a second smaller stream.",21400000,3.56,"sideways",0.05,"↗️"],
+  ["buttonGrease","Idle Boost","Coming back after a pause gives the next batch a bump.",25800000,3.6,"idleBurst",0.09,"🧴"],
+  ["sharedBattery","Shared Power","Each online player charges a little shared CPS.",30900000,3.64,"sharedBattery",0.17,"🔌"],
+  ["fanClub","Donor Buff","Super Chats slightly improve generated output.",37100000,3.68,"superchatBonus",0.006,"❤️"],
+  ["lateShift","Long Session","Staying active for longer makes passive CPS stronger.",44500000,3.72,"uptime",0.0035,"🌙"],
+  ["heavyThumb","Heavy Finger","Raw clicks get another direct boost.",53400000,3.76,"clickMult",0.05,"☝️"],
+  ["serverSnack","Server Buff","The shared total gets a small multiplier.",64000000,3.8,"globalMult",0.022,"🖥️"],
+  ["panicButton","Panic Button","Rarely gives the current batch a huge shove.",76800000,3.84,"panic",0.009,"🚨"],
+  ["lastResort","Emergency","Mixes a solid passive bonus with extra output.",92200000,3.88,"lastResort",1.7,"🧯"],
+  ["theThing","Final Upgrade","Late-game pile of several useful bonuses.",110000000,3.92,"final",4.5,"⭐"]
+];
+
+let db=null;
+let auth=null;
+let uid=localStorage.getItem("clicklaborate_uid")||crypto.randomUUID();
+let name=localStorage.getItem("clicklaborate_name")||"";
+localStorage.setItem("clicklaborate_uid",uid);
+
+let game={
+  globalClicks:0,totalGenerated:0,rawClicks:0,peakCps:0,
+  upgrades:{},lastTick:0
+};
+let presence={};
+let seconds=[];
+let milestones={};
+let proposal=null;
+let superChats={};
+let youtube={streamUrl:"",liveChatId:"",pageToken:"",pollerLease:0,lastPoll:0};
+let localClicks=[];
+let queued={};
+let rendered={};
+let lastFrame=performance.now();
+let visualCounter=0;
+let lastKnownTotal=0;
+let rollTarget=0;
+let currentCps=0;
+let sessionPeakCps=0;
+let fxRates={EUR:1};
+let fxLoadedAt=0;
+
+const el=id=>document.getElementById(id);
+const num=v=>Number(v||0);
+const fmt=v=>Math.floor(num(v)).toLocaleString("en-US");
+const money=(v,c="")=>`${c?c+" ":""}${num(v).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+const now=()=>Date.now();
+const sec=()=>Math.floor(Date.now()/1000);
+
+function toast(text){
+  el("toast").textContent=text;
+  el("toast").classList.add("show");
+  clearTimeout(toast._t);
+  toast._t=setTimeout(()=>el("toast").classList.remove("show"),2200);
+}
+
+function cleanName(v){
+  return String(v||"").trim().replace(/[^\w\- ]/g,"").slice(0,24);
+}
+
+function escapeText(v){
+  return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+}
+
+function activeUsers(){
+  const t=now();
+  return Object.values(presence).filter(v=>v&&v.online&&t-num(v.lastSeen)<8000).length;
+}
+
+function effectData(){
+  const e={clickPower:0,mult:0,crit:0,passive:0,offline:0,offlineMult:0,vote:0,combo:0,group:0,rawBoost:0,double:0,time:0,refund:0,heat:0,globalPassive:0,burst:0,passiveFlat:0,chain:0,backspace:0,crowd:0,milestoneMult:0,sideways:0,idleBurst:0,sharedBattery:0,superchatBonus:0,uptime:0,clickMult:0,globalMult:0,panic:0,lastResort:0,final:0};
+  for(const d of U){
+    const lv=num(game.upgrades?.[d[0]]),k=d[5],a=num(d[6]);
+    if(!lv)continue;
+    if(k in e)e[k]+=lv*a;
+  }
+  return e;
+}
+
+function upgradeCost(id,level){
+  const d=U.find(x=>x[0]===id);
+  return d?Math.floor(num(d[3])*Math.pow(num(d[4]),level)):Infinity;
+}
+
+function totalUpgradeLevels(){
+  return U.reduce((a,d)=>a+num(game.upgrades?.[d[0]]),0);
+}
+
+function buildRoll(target,fromValue=null){
+  const node=el("mainCounter");
+  const value=String(Math.max(0,Math.floor(num(target)))).toLocaleString("en-US");
+  const oldValue=String(fromValue==null?node.dataset.display||target:Math.max(0,Math.floor(num(fromValue)))).toLocaleString("en-US");
+  const oldDigits=oldValue.split("").filter(ch=>/[0-9]/.test(ch));
+  const newDigits=value.split("").filter(ch=>/[0-9]/.test(ch));
+  node.innerHTML="";
+  let di=0;
+  for(const ch of value){
+    if(!/[0-9]/.test(ch)){
+      const mark=document.createElement("span");
+      mark.className=ch===","?"roll-comma":"roll-dot";
+      mark.textContent=ch;
+      node.appendChild(mark);
+      continue;
+    }
+    const cell=document.createElement("span");
+    cell.className="roll-digit";
+    const oldIndex=oldDigits.length-newDigits.length+di;
+    const fromDigit=oldIndex>=0?Number(oldDigits[oldIndex]):0;
+    const toDigit=Number(ch);
+    cell.dataset.current=String(fromDigit);
+    cell.dataset.target=String(toDigit);
+    cell.dataset.busy="0";
+    const track=document.createElement("span");
+    track.className="roll-track";
+    const wrap=document.createElement("span");
+    wrap.textContent=String(fromDigit);
+    track.appendChild(wrap);
+    track.style.transition="none";
+    track.style.transform="translateY(0)";
+    cell.appendChild(track);
+    node.appendChild(cell);
+    if(fromValue!=null&&fromDigit!==toDigit)animateRollCell(cell,toDigit);
+    di++;
+  }
+  node.dataset.value=value;
+  node.dataset.target=String(Math.max(0,Math.floor(num(target))));
+  if(fromValue==null)node.dataset.display=String(Math.max(0,Math.floor(num(target))));
+}
+
+function animateRollCell(cell,digit){
+  if(!cell||!cell.classList.contains("roll-digit"))return;
+  const track=cell.querySelector(".roll-track");
+  if(!track)return;
+  const target=((Number(digit)%10)+10)%10;
+  cell.dataset.target=String(target);
+  if(cell.dataset.busy==="1")return;
+  const current=((Number(cell.dataset.current)||0)%10+10)%10;
+  if(current===target)return;
+
+  const forward=(target-current+10)%10;
+  const steps=forward||10;
+  track.innerHTML="";
+  for(let i=0;i<=steps;i++){
+    const d=document.createElement("span");
+    d.textContent=String((current+i)%10);
+    track.appendChild(d);
+  }
+  track.style.transition="none";
+  track.style.transform="translateY(0)";
+  cell.dataset.busy="1";
+
+  requestAnimationFrame(()=>{
+    requestAnimationFrame(()=>{
+      if(!cell.isConnected)return;
+      track.style.transition="transform 1000ms cubic-bezier(.37,0,.63,1)";
+      track.style.transform=`translateY(-${steps}em)`;
+    });
+  });
+
+  const done=()=>{
+    track.removeEventListener("transitionend",done);
+    const reached=target;
+    const latest=((Number(cell.dataset.target)%10)+10)%10;
+    track.style.transition="none";
+    track.innerHTML="";
+    const only=document.createElement("span");
+    only.textContent=String(reached);
+    track.appendChild(only);
+    track.style.transform="translateY(0)";
+    cell.dataset.current=String(reached);
+    cell.dataset.busy="0";
+    if(reached!==latest)animateRollCell(cell,latest);
+  };
+  track.addEventListener("transitionend",done,{once:true});
+}
+
+function updateRoll(target){
+  const node=el("mainCounter");
+  const rawTarget=Math.max(0,Math.floor(num(target)));
+  const value=String(rawTarget).toLocaleString("en-US");
+  const currentValue=String(node.dataset.value||"");
+  const currentDigits=currentValue.replace(/\D/g,"").length;
+  const nextDigits=value.replace(/\D/g,"").length;
+  node.dataset.target=String(rawTarget);
+
+  if(!node.children.length){
+    buildRoll(rawTarget);
+    return;
+  }
+
+  if(currentDigits!==nextDigits){
+    const displayed=Number(node.dataset.display||currentValue.replace(/,/g,"")||0);
+    buildRoll(rawTarget,displayed);
+    return;
+  }
+
+  const chars=[...value];
+  const cells=[...node.children];
+  let di=0;
+  for(const ch of chars){
+    if(!/[0-9]/.test(ch))continue;
+    const actual=cells.filter(item=>item.classList.contains("roll-digit"))[di];
+    if(!actual){buildRoll(rawTarget,Number(node.dataset.display||0));return}
+    actual.dataset.target=String(Number(ch));
+    if(actual.dataset.busy!=="1"&&Number(actual.dataset.current||0)!==Number(ch))animateRollCell(actual,Number(ch));
+    di++;
+  }
+  node.dataset.value=value;
+  node.dataset.display=String(rawTarget);
+}
+
+function updateSmallNumber(id,value){
+  const node=el(id);
+  const text=fmt(value);
+  if(rendered[id]===text)return;
+  rendered[id]=text;
+  node.textContent=text;
+}
+
+function latestSeconds(){
+  const t=sec();
+  return seconds.filter(x=>t-num(x.second)<60).sort((a,b)=>num(a.second)-num(b.second));
+}
+
+function deriveCps(){
+  const last=latestSeconds();
+  const recent=last.slice(-5);
+  const total=recent.reduce((a,x)=>a+num(x.cps),0);
+  return recent.length?total/recent.length:0;
+}
+
+function refreshCps(){
+  currentCps=deriveCps();
+  renderHome();
+  renderStats();
+}
+
+function donorClicksTotal(){
+  return Object.values(superChats||{}).reduce((a,x)=>a+num(x.clicks),0);
+}
+
+async function loadFx(){
+  if(now()-fxLoadedAt<3600000)return fxRates;
+  try{
+    const r=await fetch("https://api.frankfurter.dev/v2/rates?base=EUR");
+    if(!r.ok)throw new Error("fx");
+    const rows=await r.json();
+    const next={EUR:1};
+    for(const row of rows||[]){
+      if(row?.quote&&num(row.rate)>0)next[row.quote]=num(row.rate);
+    }
+    fxRates=next;
+    fxLoadedAt=now();
+  }catch(_){ }
+  return fxRates;
+}
+
+function euroValue(amount,currency){
+  if(!currency||currency==="EUR")return num(amount);
+  const rate=num(fxRates[currency]);
+  return rate>0?num(amount)/rate:num(amount);
+}
+
+function localCps(){
+  const t=now();
+  localClicks=localClicks.filter(x=>t-x<1000);
+  return localClicks.length;
+}
+
+
+function milestoneRows(){
+  return MILESTONES.map(n=>{
+    const row=milestones[n];
+    return `<div class="milestone ${row?"reached":""}">
+      <div class="ms-icon">${row?"✓":"•"}</div>
+      <div class="ms-num">${fmt(n)}</div>
+      <div class="ms-who">${row?"by "+escapeText(row.name||"someone"):"Not reached"}</div>
+    </div>`;
+  }).join("");
+}
+
+function renderMilestones(){
+  el("statsMilestones").innerHTML=milestoneRows();
+}
+
+function upgradeEffectText(d,level){
+  const k=d[5],a=num(d[6]),next=level+1;
+  if(k==="clickPower")return `+${fmt(a*next)} extra per click`;
+  if(k==="passive"||k==="passiveFlat")return `+${a.toFixed(2)} CPS`;
+  if(k==="combo")return `+${(a*100).toFixed(1)}% combo bonus per 2 combo`;
+  if(k==="offline")return `+${(a*100).toFixed(0)}% offline CPS`;
+  if(k==="offlineMult")return `+${(a*100).toFixed(0)}% offline boost`;
+  if(k==="crit")return `+${(a*100).toFixed(1)}% chance to crit`;
+  if(k==="group")return `+${(a*100).toFixed(1)}% per online player`;
+  if(k==="rawBoost"||k==="clickMult")return `+${(a*100).toFixed(1)}% raw click output`;
+  if(k==="double")return `+${(a*100).toFixed(1)}% chance to double`;
+  if(k==="time"||k==="uptime")return `+${(a*100).toFixed(2)}% passive scaling`;
+  if(k==="refund")return `+${(a*100).toFixed(1)}% batch refund`;
+  if(k==="heat")return `+${(a*100).toFixed(1)}% hot-click bonus`;
+  if(k==="globalPassive"||k==="sharedBattery")return `+${a.toFixed(2)} global CPS`;
+  if(k==="burst")return `+${(a*100).toFixed(1)}% burst output`;
+  if(k==="vote")return `+${(a*100).toFixed(1)}% vote weight`;
+  if(k==="chain")return `+${(a*100).toFixed(1)}% chain scaling`;
+  if(k==="backspace")return `+${(a*100).toFixed(1)}% missed-batch bonus`;
+  if(k==="crowd")return `+${a.toFixed(2)} CPS per online player`;
+  if(k==="milestoneMult")return `+${(a*100).toFixed(1)}% per milestone`;
+  if(k==="sideways")return `+${(a*100).toFixed(1)}% copied output`;
+  if(k==="idleBurst")return `+${(a*100).toFixed(1)}% return burst`;
+  if(k==="superchatBonus")return `+${(a*100).toFixed(2)}% support bonus per event`;
+  if(k==="globalMult")return `+${(a*100).toFixed(1)}% global output`;
+  if(k==="panic")return `+${(a*100).toFixed(1)}% huge-hit chance`;
+  if(k==="lastResort")return `+${a.toFixed(2)} CPS`;
+  if(k==="final")return `+${a.toFixed(2)} CPS +${(a*100/45).toFixed(1)}% output`;
+  return `+${a}`;
+}
+
+function renderUpgrades(){
+  const html=U.map(d=>{
+    const level=num(game.upgrades?.[d[0]]);
+    const cost=upgradeCost(d[0],level);
+    const can=num(game.globalClicks)>=cost && activeUsers()>=3;
+    return `<div class="upgrade">
+      <div class="up-top"><div class="up-name">${d[7]} ${escapeText(d[1])}</div><div class="up-level">Lv ${level}</div></div>
+      <div class="up-desc">${escapeText(d[2])}</div>
+      <div class="up-effect">${escapeText(upgradeEffectText(d,level))}</div>
+      <div class="up-bottom">
+        <div class="cost">${fmt(cost)}</div>
+        <div class="up-actions"><button class="btn small" data-up="${d[0]}" ${can?"":"disabled"}>Vote</button></div>
+      </div>
+    </div>`;
+  }).join("");
+  el("sidebarUpgradeList").innerHTML=html;
+  document.querySelectorAll("[data-up]").forEach(b=>b.onclick=()=>proposeUpgrade(b.dataset.up));
+}
+
+function proposalStateText(p){
+  if(!p)return "";
+  const expires=Math.max(0,Math.ceil((num(p.endsAt)-now())/1000));
+  const votes=num(p.yes)+num(p.no);
+  return `${votes} vote${votes===1?"":"s"} · ${expires}s left`;
+}
+
+function renderProposal(){
+  const box=el("proposal");
+  if(!proposal?.active){box.classList.remove("show");return}
+  box.classList.add("show");
+  const d=U.find(x=>x[0]===proposal.upgradeId);
+  const yes=num(proposal.yes),no=num(proposal.no),total=yes+no;
+  const yesPct=total?yes/total*100:50;
+  el("proposalIcon").textContent=d?.[7]||"🛒";
+  el("proposalTitle").textContent=`${d?.[1]||"Upgrade"} is on the chopping block`;
+  el("proposalSub").textContent=`Costs ${fmt(proposal.cost)} global clicks. At least 3 people had to be online to start this vote.`;
+  el("yesFill").style.width=`${yesPct}%`;
+  el("noFill").style.width=`${100-yesPct}%`;
+  el("yesCount").textContent=String(yes);
+  el("noCount").textContent=String(no);
+  const voted=!!proposal.voters?.[uid];
+  el("voteInfo").textContent=voted?`You voted ${proposal.voters[uid]}. ${proposalStateText(proposal)}`:proposalStateText(proposal);
+  el("voteYes").disabled=voted;
+  el("voteNo").disabled=voted;
+}
+
+function superColor(tier,type){
+  if(type==="membership")return "#ffd65b";
+  const colors={1:"#1d86e8",2:"#1f9ed1",3:"#31b56b",4:"#ffd23f",5:"#ffad32",6:"#ff7d2e",7:"#ef4d4d"};
+  return colors[Math.max(1,Math.min(7,num(tier)||1))]||"#ffd23f";
+}
+
+function renderSuperChats(){
+  const rows=Object.values(superChats||{}).sort((a,b)=>num(b.at)-num(a.at)).slice(0,12);
+  const revenueEur=Object.values(superChats||{}).reduce((a,r)=>a+num(r.amountEur),0);
+  const revenue=`€${revenueEur.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+  const statRevenue=el("statScRevenue");
+  const statCount=el("statScCount");
+  if(statRevenue)statRevenue.textContent=revenue;
+  if(statCount)statCount.textContent=fmt(Object.keys(superChats||{}).length);
+  const list=rows.map(r=>{
+    const bg=superColor(r.tier,r.type);
+    let message=r.message||"";
+    if(r.type==="sticker"&&!message)message="Super Sticker";
+    if(r.type==="membership"&&!message)message=`Gifted ${fmt(r.memberships)} membership${num(r.memberships)===1?"":"s"}`;
+    return `<div class="sc-card" style="background:${bg}">
+      <div class="sc-top">
+        <div class="sc-user"><img class="sc-pfp" src="${escapeText(r.pfp||"")}" alt=""><div class="sc-username">${escapeText(r.name||"Anonymous")}</div></div>
+        <div class="sc-money">${escapeText(r.amountDisplay||money(r.amount,r.currency))}</div>
+      </div>
+      <div class="sc-message">${escapeText(message)}</div>
+      <div class="sc-bottom"><span>${fmt(r.clicks)} clicks</span></div>
+    </div>`;
+  }).join("")||'<div class="sc-empty">Nothing yet.</div>';
+  el("recentSuperChats").innerHTML=list;
+  el("statsSuperChats").innerHTML=list;
+}
+
+function currentCombo(){
+  const lastRaw=num(game.lastRawAt);
+  if(!lastRaw||now()-lastRaw>=1000)return 0;
+  return Math.min(500,num(game.combo));
+}
+
+function renderStats(){
+  updateSmallNumber("statGlobal",game.globalClicks);
+  updateSmallNumber("statGenerated",game.totalGenerated);
+  updateSmallNumber("statCps",currentCps);
+  updateSmallNumber("statPeak",game.peakCps);
+  updateSmallNumber("statSessionPeak",sessionPeakCps);
+  updateSmallNumber("statOnline",activeUsers());
+  updateSmallNumber("statUpgradeCount",totalUpgradeLevels());
+  updateSmallNumber("sideOnline",activeUsers());
+  updateSmallNumber("topOnline",activeUsers());
+  updateSmallNumber("sideCps",localCps());
+  updateSmallNumber("homeRaw",game.rawClicks);
+  updateSmallNumber("homeBonus",Math.max(0,num(game.globalClicks)-num(game.rawClicks)));
+  updateSmallNumber("homeUpgrades",totalUpgradeLevels());
+  updateSmallNumber("homeDonorClicks",donorClicksTotal());
+  el("sideRaw").textContent=`${fmt(localClicksTotal)} raw clicks`;
+}
+
+let localClicksTotal=num(localStorage.getItem("clicklaborate_raw")||0);
+
+function renderHome(){
+  updateRoll(rollTarget);
+  updateSmallNumber("globalCps",currentCps);
+  updateSmallNumber("globalMinute",currentCps*60);
+  updateSmallNumber("yourCps",localCps());
+  updateSmallNumber("sideCps",localCps());
+  updateSmallNumber("sideCombo",currentCombo());
+  updateSmallNumber("topCps",currentCps);
+}
+
+async function awardMilestones(before,after){
+  for(const n of MILESTONES){
+    if(num(before)<n&&num(after)>=n){
+      await runTransaction(ref(db,`milestones/${n}`),cur=>cur?cur:{name,uid,at:now()}).catch(()=>{});
+    }
+  }
+}
+
+async function generateClicks(amount,rawDelta=0){
+  if(!db||!amount)return;
+  let beforeRaw=0,afterRaw=0;
+  const tx=await runTransaction(ref(db,"game"),cur=>{
+    cur=cur||{};
+    beforeRaw=num(cur.rawClicks);
+    afterRaw=beforeRaw+num(rawDelta);
+    cur.globalClicks=num(cur.globalClicks)+num(amount);
+    cur.totalGenerated=num(cur.totalGenerated)+num(amount);
+    cur.rawClicks=afterRaw;
+    if(rawDelta>0){
+      const active=(now()-num(cur.lastRawAt))<1000;
+      cur.combo=active?Math.min(500,num(cur.combo)+num(rawDelta)):num(rawDelta);
+      cur.lastRawAt=now();
+    }
+    return cur;
+  });
+  if(tx.committed){
+    if(rawDelta>0)awardMilestones(beforeRaw,afterRaw);
+    await runTransaction(ref(db,`seconds/${sec()}`),v=>{
+      v=v||{};
+      v.cps=num(v.cps)+num(amount);
+      return v;
+    }).catch(()=>{});
+    refreshCps();
+  }
+}
+
+function queueClick(){
+  const s=sec();
+  queued[s]=num(queued[s])+1;
+  localClicks.push(now());
+  localClicksTotal++;
+  localStorage.setItem("clicklaborate_raw",String(localClicksTotal));
+  renderHome();
+}
+
+async function flushClicks(){
+  const s=sec()-1;
+  const raw=num(queued[s]);
+  if(!raw)return;
+  delete queued[s];
+  const e=effectData();
+  const comboLevel=currentCombo();
+  let mult=1+e.mult+e.clickMult+e.final+(activeUsers()-1)*e.group+(localClicks.length>=10?e.heat:0);
+  mult*=1+e.combo*Math.min(60,Math.floor(comboLevel/2));
+  if(Math.random()<Math.min(.9,e.crit))mult*=2;
+  if(Math.random()<Math.min(.95,e.double))mult*=2;
+  if(Math.random()<Math.min(.9,e.panic))mult*=8;
+  mult*=1+e.burst;
+  if(num(Object.keys(milestones).length)>0)mult*=1+e.milestoneMult*num(Object.keys(milestones).length);
+  const generated=Math.max(raw,Math.round(raw*(1+e.clickPower+e.rawBoost+e.refund)*(1+e.sideways)*mult));
+  try{await generateClicks(generated,raw)}catch(_){queued[s]=num(queued[s])+raw}
+}
+
+let passiveAt=0;
+async function passiveTick(){
+  if(!db)return;
+  const nowMs=now();
+  let gained=0;
+  const e=effectData();
+  await runTransaction(ref(db,"game"),cur=>{
+    cur=cur||{};
+    const prev=num(cur.lastTick)||nowMs;
+    const elapsed=Math.max(0,Math.min((nowMs-prev)/1000,3600));
+    if(elapsed<1)return cur;
+    const people=activeUsers();
+    let rate=e.passive+e.passiveFlat;
+    rate*=1+e.time*Math.min(60,elapsed);
+    rate*=1+e.uptime*Math.min(300,seconds.length);
+    rate*=1+e.globalMult;
+    rate+=people*e.crowd+e.globalPassive+e.sharedBattery*people+e.lastResort+e.final;
+    if(people===0)rate*=1+e.offline+e.offlineMult;
+    const scCount=Object.keys(superChats||{}).length;
+    rate*=1+e.superchatBonus*scCount;
+    gained=rate*elapsed;
+    cur.globalClicks=num(cur.globalClicks)+gained;
+    cur.totalGenerated=num(cur.totalGenerated)+gained;
+    cur.lastTick=nowMs;
+    return cur;
+  });
+  if(gained>0){
+    await runTransaction(ref(db,`seconds/${sec()}`),v=>{
+      v=v||{};
+      v.cps=num(v.cps)+gained;
+      return v;
+    }).catch(()=>{});
+    refreshCps();
+  }
+}
+
+async function proposeUpgrade(id){
+  const d=U.find(x=>x[0]===id);
+  if(!d)return;
+  if(activeUsers()<3){toast("At least 3 people need to be online.");return}
+  if(proposal?.active){toast("There is already a vote running.");return}
+  const level=num(game.upgrades?.[id]);
+  const cost=upgradeCost(id,level);
+  if(num(game.globalClicks)<cost){toast("Not enough clicks.");return}
+  const pRef=ref(db,"proposal/current");
+  const proposalId=crypto.randomUUID();
+  const tx=await runTransaction(pRef,cur=>{
+    if(cur?.active)return cur;
+    return {id:proposalId,active:true,upgradeId:id,cost,yes:0,no:0,voters:{},startedBy:name,startedAt:now(),endsAt:now()+VOTE_SECONDS*1000};
+  });
+  if(!tx.committed){toast("Someone else started a vote.");return}
+  toast("Vote opened.");
+}
+
+async function castVote(choice){
+  if(!proposal?.active||proposal.voters?.[uid])return;
+  await runTransaction(ref(db,"proposal/current"),cur=>{
+    if(!cur?.active)return cur;
+    if(num(cur.endsAt)<=now())return cur;
+    cur.voters=cur.voters||{};
+    if(cur.voters[uid])return cur;
+    cur.voters[uid]=choice;
+    cur[choice]=num(cur[choice])+1;
+    return cur;
+  });
+}
+
+async function finishProposal(){
+  if(!proposal?.active||num(proposal.endsAt)>now())return;
+  const p=proposal;
+  const winner=num(p.yes)>num(p.no);
+  const pRef=ref(db,"proposal/current");
+  if(!winner){
+    await runTransaction(pRef,cur=>cur?.id===p.id?null:cur);
+    return;
+  }
+  if(activeUsers()<3){
+    await runTransaction(pRef,cur=>cur?.id===p.id?null:cur);
+    toast("Vote passed, but fewer than 3 people are online now, so it was cancelled.");
+    return;
+  }
+  const stateTx=await runTransaction(ref(db,"game"),cur=>{
+    cur=cur||{};
+    if(num(cur.globalClicks)<num(p.cost))return cur;
+    cur.globalClicks=Math.max(0,num(cur.globalClicks)-num(p.cost));
+    cur.upgrades=cur.upgrades||{};
+    cur.upgrades[p.upgradeId]=num(cur.upgrades[p.upgradeId])+1;
+    return cur;
+  });
+  if(stateTx.committed){
+    await runTransaction(pRef,cur=>cur?.id===p.id?null:cur);
+    toast("Upgrade unlocked.");
+  }
+}
+
+async function initPresence(){
+  const p=ref(db,`presence/${uid}`);
+  const data={name,uid,online:true,lastSeen:now()};
+  await set(p,data);
+  onDisconnect(p).remove();
+  setInterval(()=>update(p,{name,online:true,lastSeen:now()}),3000);
+}
+
+function parseVideoId(url){
+  try{
+    const u=new URL(url);
+    if(u.hostname==="youtu.be")return u.pathname.slice(1).split("/")[0];
+    const v=u.searchParams.get("v");
+    if(v)return v;
+    const parts=u.pathname.split("/").filter(Boolean);
+    const i=parts.findIndex(x=>["live","embed","shorts"].includes(x));
+    return i>=0&&parts[i+1]?parts[i+1]:null;
+  }catch(_){return null}
+}
+
+async function youtubeRequest(endpoint,params){
+  const q=new URLSearchParams({...params,key:YOUTUBE_API_KEY});
+  const r=await fetch(`https://www.googleapis.com/youtube/v3/${endpoint}?${q.toString()}`);
+  if(!r.ok)throw new Error(`YouTube ${r.status}`);
+  return r.json();
+}
+
+async function ensureLiveChatId(){
+  if(!youtube.streamUrl)return null;
+  const videoId=parseVideoId(youtube.streamUrl);
+  if(!videoId)return null;
+  if(youtube.liveChatId)return youtube.liveChatId;
+  const data=await youtubeRequest("liveBroadcasts",{part:"id,snippet,status",id:videoId});
+  const row=data.items?.[0];
+  const chatId=row?.snippet?.liveChatId;
+  if(!chatId)return null;
+  youtube.liveChatId=chatId;
+  await update(ref(db,"youtube/source"),{streamUrl:youtube.streamUrl,liveChatId:chatId,pageToken:youtube.pageToken||""});
+  return chatId;
+}
+
+async function claimYouTubeLease(){
+  let own=false;
+  await runTransaction(ref(db,"youtube/pollerLease"),cur=>{
+    const t=now();
+    if(!cur||num(cur.expiresAt)<=t||cur.uid===uid){
+      own=true;
+      return {uid,expiresAt:t+POLLER_LEASE_MS};
+    }
+    return cur;
+  });
+  return own;
+}
+
+async function recordSuperChat(row){
+  const id=String(row.id||"");
+  if(!id)return;
+  const type=row.snippet?.type||"";
+  const author=row.authorDetails||{};
+  const publishedAt=Date.parse(row.snippet?.publishedAt||"")||now();
+  let kind="", amount=0, currency="EUR", amountDisplay="", message="", memberships=0, tier=num(row.snippet?.superChatDetails?.tier||row.snippet?.superStickerDetails?.tier);
+  if(type==="superChatEvent"){
+    const d=row.snippet?.superChatDetails||{};
+    kind="superchat";
+    amount=num(d.amountMicros)/1e6;
+    currency=d.currency||"EUR";
+    amountDisplay=d.amountDisplayString||money(amount,currency);
+    message=d.userComment||"";
+  }else if(type==="superStickerEvent"){
+    const d=row.snippet?.superStickerDetails||{};
+    kind="sticker";
+    amount=num(d.amountMicros)/1e6;
+    currency=d.currency||"EUR";
+    amountDisplay=d.amountDisplayString||money(amount,currency);
+    message=d.superStickerMetadata?.altText||"Super Sticker";
+  }else if(type==="membershipGiftingEvent"){
+    const d=row.snippet?.membershipGiftingDetails||{};
+    kind="membership";
+    memberships=Math.max(0,num(d.giftMembershipsCount));
+    amount=memberships*4.95;
+    currency="EUR";
+    amountDisplay=`€${amount.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+    message=`Gifted ${fmt(memberships)} membership${memberships===1?"":"s"}`;
+  }else{
+    return;
+  }
+  await loadFx();
+  const cpsAtDonation=deriveCps();
+  const amountEur=euroValue(amount,currency);
+  const clicks=Math.max(0,Math.round(cpsAtDonation*amountEur*100));
+  const data={
+    id,uid:author.channelId||row.snippet?.authorChannelId||"",name:author.displayName||"Anonymous",pfp:author.profileImageUrl||"",
+    type:kind,amount,currency,amountDisplay,message,memberships,tier,at:publishedAt,cpsAtDonation,amountEur,clicks
+  };
+  let inserted=false;
+  const tx=await runTransaction(ref(db,`superChats/events/${id}`),cur=>{
+    if(cur)return cur;
+    inserted=true;
+    return data;
+  });
+  if(tx.committed&&inserted){
+    await runTransaction(ref(db,"superChats/summary"),cur=>{
+      cur=cur||{count:0,revenue:0,clicks:0};
+      cur.count=num(cur.count)+1;
+      cur.revenue=num(cur.revenue)+amountEur;
+      cur.clicks=num(cur.clicks)+clicks;
+      return cur;
+    }).catch(()=>{});
+    if(clicks>0)await generateClicks(clicks,0);
+  }
+}
+
+async function pollSuperChats(){
+  if(!youtube.streamUrl)return;
+  const lease=await claimYouTubeLease();
+  if(!lease)return;
+  try{
+    const liveChatId=await ensureLiveChatId();
+    if(!liveChatId)return;
+    const params={liveChatId,part:"id,snippet,authorDetails",maxResults:2000};
+    if(youtube.pageToken)params.pageToken=youtube.pageToken;
+    const data=await youtubeRequest("liveChatMessages",params);
+    for(const item of data.items||[]){
+      const type=item.snippet?.type;
+      if(type==="superChatEvent"||type==="superStickerEvent"||type==="membershipGiftingEvent")await recordSuperChat(item);
+    }
+    youtube.pageToken=data.nextPageToken||"";
+    await update(ref(db,"youtube/source"),{pageToken:youtube.pageToken,lastPoll:now(),liveChatId});
+    el("scStatus").textContent="tracking";
+    const delay=Math.max(4000,num(data.pollingIntervalMillis)||5000);
+    setTimeout(pollSuperChats,delay);
+  }catch(err){
+    el("scStatus").textContent="waiting";
+    setTimeout(pollSuperChats,10000);
+  }
+}
+
+async function sampleGlobalSecond(){
+  if(!db)return;
+  const s=sec()-1;
+  let pointCps=0;
+  const tx=await runTransaction(ref(db,`seconds/${s}`),v=>{
+    v=v||{};
+    pointCps=num(v.cps);
+    if(v.sampled)return v;
+    v.cps=pointCps;
+    v.at=s;
+    v.sampled=true;
+    return v;
+  }).catch(()=>null);
+  if(!tx||!tx.committed)return;
+  const fresh=num(tx.snapshot?.val?.()?.cps??pointCps);
+  pointCps=fresh;
+  sessionPeakCps=Math.max(sessionPeakCps,pointCps);
+  let peakAfter=game.peakCps;
+  const peakTx=await runTransaction(ref(db,"game/peakCps"),v=>{
+    const next=Math.max(num(v),pointCps);
+    peakAfter=next;
+    return next;
+  }).catch(()=>null);
+  if(peakTx?.committed)game.peakCps=peakAfter;
+  refreshCps();
+  drawChart();
+}
+
+function subscribe(){
+  const watch=(path,fn)=>onValue(ref(db,path),fn,err=>{
+    console.error("[Clicklaborate Firebase] listener failed",{path,code:err?.code,message:err?.message,error:err});
+    toast(`Firebase read failed: ${err?.code||"unknown error"}`);
+  });
+  watch("game",s=>{
+    game={...game,...(s.val()||{})};
+    if(!game.upgrades)game.upgrades={};
+    rollTarget=num(game.globalClicks);
+    lastKnownTotal=rollTarget;
+    renderHome();renderStats();renderUpgrades();
+  });
+  watch("presence",s=>{
+    presence=s.val()||{};
+    renderHome();renderStats();renderUpgrades();
+  });
+  watch("seconds",s=>{
+    const v=s.val()||{};
+    seconds=Object.entries(v).map(([second,x])=>({second,...(x||{})})).sort((a,b)=>num(a.second)-num(b.second)).slice(-120);
+    refreshCps();
+    drawChart();
+  });
+  watch("milestones",s=>{milestones=s.val()||{};renderMilestones()});
+  watch("proposal/current",s=>{proposal=s.val();renderProposal()});
+  watch("superChats/events",s=>{superChats=s.val()||{};renderSuperChats();renderStats()});
+  watch("youtube/source",s=>{youtube={...youtube,...(s.val()||{})}});
+  setInterval(flushClicks,1000);
+  setInterval(sampleGlobalSecond,1000);
+  setInterval(()=>{renderHome();renderStats();renderSuperChats();drawChart();},1000);
+  setInterval(passiveTick,2000);
+  setInterval(finishProposal,1000);
+}
+
+function animationTick(){
+  updateRoll(rollTarget);
+  requestAnimationFrame(animationTick);
+}
+
+function drawChart(){
+  const c=el("cpsChart"),ctx=c.getContext("2d");
+  const r=c.getBoundingClientRect();
+  if(!r.width||!r.height)return;
+  const dpr=devicePixelRatio||1;
+  const w=Math.floor(r.width*dpr),h=Math.floor(r.height*dpr);
+  if(c.width!==w||c.height!==h){c.width=w;c.height=h}
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,r.width,r.height);
+  const data=latestSeconds();
+  const vals=data.length?data.map(x=>num(x.cps)):[0];
+  const max=Math.max(1,...vals);
+  ctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue("--line");
+  ctx.lineWidth=1;
+  for(let i=0;i<5;i++){
+    const y=12+(r.height-36)*i/4;
+    ctx.beginPath();ctx.moveTo(12,y);ctx.lineTo(r.width-12,y);ctx.stroke();
+  }
+  ctx.strokeStyle="#ededed";
+  ctx.lineWidth=2.4;
+  ctx.beginPath();
+  vals.forEach((v,i)=>{
+    const x=12+(r.width-24)*(vals.length===1?0:i/(vals.length-1));
+    const y=r.height-28-(v/max)*(r.height-44);
+    if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+}
+
+function chartPointFromEvent(e){
+  const c=el("cpsChart");
+  const r=c.getBoundingClientRect();
+  const data=latestSeconds();
+  if(!data.length)return null;
+  const x=Math.max(12,Math.min(r.width-12,e.clientX-r.left));
+  const index=Math.round((x-12)/Math.max(1,r.width-24)*(data.length-1));
+  const item=data[Math.max(0,Math.min(data.length-1,index))];
+  const vals=data.map(d=>num(d.cps));
+  const max=Math.max(1,...vals);
+  const px=12+(r.width-24)*(data.length===1?0:index/(data.length-1));
+  const py=r.height-28-(num(item.cps)/max)*(r.height-44);
+  return {item,px,py};
+}
+
+el("cpsChart")?.addEventListener("mousemove",e=>{
+  const tip=el("chartTip");
+  const point=chartPointFromEvent(e);
+  if(!point){tip.style.display="none";return}
+  const localTime=new Date(num(point.item.second)*1000).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",second:"2-digit"});
+  tip.textContent=`${fmt(point.item.cps)} CPS · ${localTime}`;
+  tip.style.display="block";
+  const w=tip.offsetWidth;
+  const h=tip.offsetHeight;
+  tip.style.left=`${Math.max(4,Math.min(e.currentTarget.clientWidth-w-4,point.px-w/2))}px`;
+  tip.style.top=`${Math.max(4,point.py-h-8)}px`;
+});
+el("cpsChart")?.addEventListener("mouseleave",()=>{el("chartTip").style.display="none"});
+
+function showView(view){
+  const home=view==="home";
+  el("homeView").classList.toggle("active",home);
+  el("statsView").classList.toggle("active",!home);
+  if(!home)drawChart();
+}
+
+function openSidebar(){
+  el("sidebar").classList.add("open");
+  el("mobileShade").classList.add("show");
+}
+function closeSidebar(){
+  el("sidebar").classList.remove("open");
+  el("mobileShade").classList.remove("show");
+}
+
+function enter(){
+  const n=cleanName(el("nameInput").value);
+  if(!n)return;
+  name=n;
+  localStorage.setItem("clicklaborate_name",name);
+  el("joinModal").classList.remove("show");
+  const shell=document.querySelector(".app");
+  shell.style.display="grid";
+  shell.style.visibility="visible";
+  shell.style.opacity="1";
+  shell.style.pointerEvents="auto";
+  el("sideName").textContent=name;
+  start();
+}
+
+async function start(){
+  const tag="[Clicklaborate Firebase]";
+  try{
+    console.info(tag,"starting",{projectId:firebaseConfig.projectId,databaseURL:firebaseConfig.databaseURL,location:location.href});
+    const app=initializeApp(firebaseConfig);
+    let appCheck=null;
+    try{
+      appCheck=initializeAppCheck(app,{provider:new ReCaptchaV3Provider(APP_CHECK_KEY),isTokenAutoRefreshEnabled:true});
+      console.info(tag,"App Check initialized",{provider:"reCAPTCHA v3"});
+      try{
+        const tokenResult=await getAppCheckToken(appCheck,true);
+        console.info(tag,"App Check token acquired",{tokenPresent:!!tokenResult?.token});
+      }catch(appCheckErr){
+        console.error(tag,"App Check token exchange failed",{
+          code:appCheckErr?.code,
+          message:appCheckErr?.message,
+          key:APP_CHECK_KEY,
+          host:location.hostname,
+          hint:"Check that this exact reCAPTCHA v3 site key is registered for this Firebase web app in Firebase Console > App Check, that its paired secret key is configured there, and that this hostname is allowed by the reCAPTCHA key."
+        },appCheckErr);
+        toast("Firebase App Check failed. See console.");
+      }
+    }catch(appCheckInitErr){
+      console.error(tag,"App Check initialization failed",appCheckInitErr);
+      toast("Firebase App Check failed. See console.");
+    }
+    auth=getAuth(app);
+    try{
+      await signInAnonymously(auth);
+      console.info(tag,"anonymous auth ok",auth.currentUser?.uid||"no uid");
+    }catch(authErr){
+      console.error(tag,"anonymous auth failed",{code:authErr?.code,message:authErr?.message,error:authErr});
+      toast("Firebase auth failed. Check the console.");
+      throw authErr;
+    }
+    db=getDatabase(app);
+    const connectedRef=ref(db,".info/connected");
+    onValue(connectedRef,snap=>{
+      const connected=snap.val()===true;
+      el("connectionText").textContent=connected?"Connected":"Connecting";
+      if(!connected)toast("Could not connect to Firebase.");
+      console.info(tag,connected?"database connected":"database disconnected");
+    },err=>{
+      console.error(tag,".info/connected listener failed",{code:err?.code,message:err?.message,error:err});
+      toast("Firebase connection check failed. Check the console.");
+    });
+    await initPresence();
+    console.info(tag,"presence ok");
+    const stateSnap=await get(ref(db,"game"));
+    console.info(tag,"game read ok",stateSnap.exists()?"game exists":"game missing");
+    if(!stateSnap.exists()){
+      const upgrades={};
+      U.forEach(d=>upgrades[d[0]]=0);
+      await set(ref(db,"game"),{globalClicks:0,totalGenerated:0,rawClicks:0,peakCps:0,upgrades,lastTick:now()});
+      console.info(tag,"created initial game state");
+    }
+    sessionPeakCps=currentCps;
+    subscribe();
+    console.info(tag,"startup complete");
+  }catch(err){
+    console.error(tag,"startup failed",{code:err?.code,name:err?.name,message:err?.message,stack:err?.stack,error:err,config:{projectId:firebaseConfig.projectId,authDomain:firebaseConfig.authDomain,databaseURL:firebaseConfig.databaseURL}});
+    el("connectionText").textContent="Firebase error";
+    toast(`Firebase failed: ${err?.code||err?.message||"unknown error"}`);
+  }
+}
+
+el("joinButton").onclick=enter;
+el("nameInput").addEventListener("keydown",e=>{if(e.key==="Enter")enter()});
+el("clickButton").onclick=queueClick;
+el("upgradesToggle").onclick=()=>{
+  el("upgradeSide").classList.toggle("hidden");
+};
+el("statsButton").onclick=()=>{showView("stats");closeSidebar()};
+el("backButton").onclick=()=>showView("home");
+el("mobileMenu").onclick=openSidebar;
+el("sidebarClose").onclick=closeSidebar;
+el("mobileMenuClose").onclick=closeSidebar;
+el("mobileShade").onclick=closeSidebar;
+el("voteYes").onclick=()=>castVote("yes");
+el("voteNo").onclick=()=>castVote("no");
+
+window.addEventListener("keydown",e=>{
+  const tag=document.activeElement?.tagName;
+  if(["INPUT","TEXTAREA","BUTTON"].includes(tag))return;
+  if(e.key===" "||e.key==="Enter"){
+    e.preventDefault();
+    queueClick();
+  }
+});
+
+window.addEventListener("beforeunload",()=>{
+  if(db)set(ref(db,`presence/${uid}`),{name,uid,online:false,lastSeen:now()}).catch(()=>{});
+});
+
+el("sideName").textContent=name||"—";
+if(name){
+  el("joinModal").classList.remove("show");
+  const shell=document.querySelector(".app");
+  shell.style.display="grid";
+  shell.style.visibility="visible";
+  shell.style.opacity="1";
+  shell.style.pointerEvents="auto";
+  start();
+}
+requestAnimationFrame(animationTick);
+</script>
+</body>
+</html>
