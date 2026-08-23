@@ -657,7 +657,11 @@ async function apiRequest(path,payload={}){
   const fn=map[path];
   if(!fn)throw new Error(`Unknown backend endpoint: ${path}`);
   try{
-    const result=await fn(payload);
+    // The backend's game state (leaderboard rows, proposal voters, per-user
+    // cps) is keyed by our persistent player uid, not the raw Firebase Auth
+    // uid that httpsCallable attaches automatically as context.auth.uid.
+    // Send it explicitly so every call gets attributed to the right row.
+    const result=await fn({...payload,uid,name});
     return result?.data||{};
   }catch(err){
     throw apiError(err);
@@ -1628,13 +1632,22 @@ async function start(){
     }
     db=getDatabase(app);
     const authUid=auth.currentUser.uid;
-    uid=authUid;
-    const profileRef=ref(db,`profiles/${firebaseSafeKey(authUid)}`);
+    // IMPORTANT: `presence`, `leaderboard/users`, and `proposal.voters` are all
+    // keyed by a persistent per-browser UUID (see `profiles/{uid}.uid`), which
+    // is a *different* identity than the Firebase anonymous-auth uid
+    // (`profiles/{uid}.authUid`). Using authUid as the player identity — like
+    // this used to — writes every session's activity under an id the rest of
+    // the game (leaderboards, live CPS tracking, vote records) never
+    // recognizes, so a returning player's stats never accumulate onto their
+    // real leaderboard row and always look "stuck".
+    uid=localStorage.getItem("clicklaborate_uid")||(crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random().toString(16).slice(2)}`);
+    localStorage.setItem("clicklaborate_uid",uid);
+    const profileRef=ref(db,`profiles/${firebaseSafeKey(uid)}`);
     const profileSnap=await get(profileRef);
     if(!profileSnap.exists()){
-      await set(profileRef,{uid:authUid,name:cleanName(name)||"Anonymous"});
+      await set(profileRef,{uid,authUid,name:cleanName(name)||"Anonymous",updatedAt:now()});
     }else if(name){
-      await update(profileRef,{name,uid:authUid});
+      await update(profileRef,{name,authUid,updatedAt:now()});
     }else{
       name=String(profileSnap.val()?.name||"");
       if(name)localStorage.setItem("clicklaborate_name",name);
