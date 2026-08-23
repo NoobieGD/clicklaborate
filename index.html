@@ -1502,7 +1502,7 @@ async function start(){
       console.error(tag,"App Check initialization failed",appCheckInitErr);
       toast("Firebase App Check failed. See console.");
     }
-    functions=getFunctions(app);
+   functions=getFunctions(app,"europe-west1");
     fnClick=httpsCallable(functions,"click");
     fnPropose=httpsCallable(functions,"proposeUpgrade");
     fnVote=httpsCallable(functions,"vote");
