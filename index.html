@@ -235,12 +235,15 @@ button:disabled{cursor:not-allowed;opacity:.42}
 .menu-mobile{display:none}
 .chat-toggle{position:fixed;right:16px;top:16px;z-index:55}.chat-panel{position:fixed;right:16px;top:64px;width:min(390px,calc(100vw - 32px));background:#0b0b0b;border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);z-index:54;overflow:hidden;display:none}.chat-panel.show{display:block}.chat-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 13px;border-bottom:1px solid var(--line)}.chat-list{max-height:360px;overflow:auto;padding:10px}.chat-row{padding:9px 10px;background:#111;border:1px solid #1f1f1f;border-radius:10px;margin-bottom:7px}.chat-meta{font-size:.68rem;color:var(--muted);margin-bottom:3px}.chat-name{font-weight:800;color:#ddd}.chat-text{font-size:.8rem;line-height:1.4;word-break:break-word}.chat-compose{display:grid;grid-template-columns:1fr auto;gap:7px;padding:10px;border-top:1px solid var(--line)}@media(max-width:560px){.chat-toggle{right:10px;top:10px}.chat-panel{right:10px;top:56px;width:calc(100vw - 20px)}.chat-list{max-height:46vh}}
 
+.repo-lock{position:fixed;inset:0;z-index:10000;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(8,8,8,.98);color:var(--text);text-align:center}.repo-lock.show{display:flex}.repo-lock-card{width:min(520px,100%);border:1px solid var(--line);background:#0b0b0b;border-radius:18px;padding:24px;box-shadow:var(--shadow)}.repo-lock-title{font-weight:850;font-size:1.15rem;margin-bottom:8px}.repo-lock-text{color:var(--muted);font-size:.82rem;line-height:1.55}.repo-lock-build{font-family:"Roboto",Arial,sans-serif;margin-top:12px;font-size:.78rem;color:#d6d6d6}
 .version-label{position:fixed;right:10px;bottom:8px;z-index:9999;font:500 11px/1 Roboto,Arial,sans-serif;color:#666;pointer-events:none;display:block;width:max-content;height:auto;margin:0;padding:0;line-height:1;box-sizing:border-box}
 @media(max-width:560px){.version-label{right:8px;bottom:6px;font-size:10px}}
 </style>
 </head>
 <body>
-<div class="version-label" aria-hidden="true">v1.5.8</div>
+<div class="version-label" aria-hidden="true">v1.5.8.1</div>
+<div id="repoLock" class="repo-lock" aria-hidden="true"><div class="repo-lock-card"><div class="repo-lock-title">Outdated build</div><div id="repoLockText" class="repo-lock-text">This page is not the current repository build.</div><div id="repoLockBuild" class="repo-lock-build"></div><button id="repoLockRefresh" class="btn primary">Refresh</button></div></div>
+
 <div id="joinModal" class="modal show">
   <div class="modal-card">
     <h2>Join Clicklaborate</h2>
@@ -566,6 +569,45 @@ let fxRates={EUR:1};
 let fxLoadedAt=0;
 let appCheckReady=false;
 
+const APP_VERSION="1.5.8.1";
+const REPO_RAW_URL="https://raw.githubusercontent.com/NoobieGD/clicklaborate/main/index.html";
+let repoLocked=false;
+let repoCheckInFlight=null;
+function lockForRepoMismatch(remoteVersion){
+  repoLocked=true;
+  const shell=document.querySelector(".app");
+  if(shell){shell.style.pointerEvents="none";shell.style.filter="blur(1px)"}
+  const modal=el("repoLock");
+  if(modal){modal.classList.add("show");modal.setAttribute("aria-hidden","false")}
+  const text=el("repoLockText");
+  if(text)text.textContent=`GitHub is running ${remoteVersion}, but this page is ${APP_VERSION}. Refresh after the latest repository build has been published.`;
+  const build=el("repoLockBuild");
+  if(build)build.textContent=`Local: ${APP_VERSION} · GitHub: ${remoteVersion}`;
+}
+async function verifyRepoVersion(force=false){
+  if(repoLocked)return false;
+  if(repoCheckInFlight&&!force)return repoCheckInFlight;
+  repoCheckInFlight=(async()=>{
+    try{
+      const r=await fetch(`${REPO_RAW_URL}?_cb=${Date.now()}`,{cache:"no-store"});
+      if(!r.ok)throw new Error(`GitHub ${r.status}`);
+      const html=await r.text();
+      const m=html.match(/<div[^>]*class=["']version-label["'][^>]*>\s*v?([^<\s]+)\s*<\/div>/i);
+      if(!m)throw new Error("version marker not found");
+      const remoteVersion=m[1];
+      if(remoteVersion!==APP_VERSION){
+        console.warn("[Clicklaborate Build] stale build",{local:APP_VERSION,remote:remoteVersion});
+        lockForRepoMismatch(remoteVersion);
+        return false;
+      }
+      return true;
+    }catch(err){
+      console.warn("[Clicklaborate Build] version check failed; allowing build",{message:err?.message,error:err});
+      return true;
+    }finally{repoCheckInFlight=null}
+  })();
+  return repoCheckInFlight;
+}
 const el=id=>document.getElementById(id);
 const num=v=>Number(v||0);
 const fmt=v=>Math.floor(num(v)).toLocaleString("en-US");
@@ -595,9 +637,9 @@ function activeUsers(){
 
 function effectData(){
   const e={
-    clickPower:0,mult:0,crit:0,passive:0,offline:0,offlineMult:0,vote:0,combo:0,
-    group:0,rawBoost:0,double:0,time:0,refund:0,heat:0,globalPassive:0,burst:0,
-    passiveFlat:0,chain:0,backspace:0,crowd:0,milestoneMult:0,sideways:0,idleBurst:0,
+    clickPower:0,mult:0,crit:0,vote:0,combo:0,
+    group:0,rawBoost:0,double:0,time:0,refund:0,heat:0,burst:0,
+    chain:0,backspace:0,crowd:0,milestoneMult:0,sideways:0,idleBurst:0,
     sharedBattery:0,superchatBonus:0,uptime:0,clickMult:0,globalMult:0,panic:0,
     lastResort:0,final:0
   };
@@ -609,11 +651,13 @@ function effectData(){
   return e;
 }
 
-function upgradeCost(id,level){
+function upgradeCost(id,level){ return authoritativeUpgradeCost(id,level); }
+
+function authoritativeUpgradeCost(id,level=null){
   const d=U.find(x=>x[0]===id);
   if(!d)return Infinity;
-  const lv=Math.max(0,num(level));
-  const base=num(d[3])*UPGRADE_PRICE_SCALE;
+  const lv=level===null?num(game.upgrades?.[id]):Math.max(0,num(level));
+  const base=Math.max(0,num(d[3]))*UPGRADE_PRICE_SCALE;
   const curve=Math.max(1.01,num(d[4])+0.18);
   const levelPressure=1+0.14*lv*lv;
   return Math.floor(base*Math.pow(curve,lv)*levelPressure);
@@ -958,24 +1002,18 @@ async function seedMilestones(){
 function upgradeEffectText(d,level){
   const k=d[5],a=num(d[6]),next=level+1;
   if(k==="clickPower")return `+${fmt(a*next)} extra per click`;
-  if(k==="passive"||k==="passiveFlat")return `+${a.toFixed(2)} CPS`;
-  if(k==="combo")return `+${(a*100).toFixed(1)}% combo bonus per 2 combo`;
-  if(k==="offline")return `+${(a*100).toFixed(0)}% offline CPS`;
-  if(k==="offlineMult")return `+${(a*100).toFixed(0)}% offline boost`;
-  if(k==="crit")return `+${(a*100).toFixed(1)}% chance to crit`;
+    if(k==="combo")return `+${(a*100).toFixed(1)}% combo bonus per 2 combo`;
+      if(k==="crit")return `+${(a*100).toFixed(1)}% chance to crit`;
   if(k==="group")return `+${(a*100).toFixed(1)}% per online player`;
   if(k==="rawBoost"||k==="clickMult")return `+${(a*100).toFixed(1)}% raw click output`;
   if(k==="double")return `+${(a*100).toFixed(1)}% chance to double`;
-  if(k==="time"||k==="uptime")return `+${(a*100).toFixed(2)}% passive scaling`;
-  if(k==="refund")return `+${(a*100).toFixed(1)}% batch refund`;
+    if(k==="refund")return `+${(a*100).toFixed(1)}% batch refund`;
   if(k==="heat")return `+${(a*100).toFixed(1)}% hot-click bonus`;
-  if(k==="globalPassive"||k==="sharedBattery")return `+${a.toFixed(2)} global CPS`;
-  if(k==="burst")return `+${(a*100).toFixed(1)}% burst output`;
+    if(k==="burst")return `+${(a*100).toFixed(1)}% burst output`;
   if(k==="vote")return `+${(a*100).toFixed(1)}% vote weight`;
   if(k==="chain")return `+${(a*100).toFixed(1)}% chain scaling`;
   if(k==="backspace")return `+${(a*100).toFixed(1)}% missed-batch bonus`;
-  if(k==="crowd")return `+${a.toFixed(2)} CPS per online player`;
-  if(k==="milestoneMult")return `+${(a*100).toFixed(1)}% per milestone`;
+    if(k==="milestoneMult")return `+${(a*100).toFixed(1)}% per milestone`;
   if(k==="sideways")return `+${(a*100).toFixed(1)}% copied output`;
   if(k==="idleBurst")return `+${(a*100).toFixed(1)}% return burst`;
   if(k==="superchatBonus")return `+${(a*100).toFixed(2)}% support bonus per event`;
@@ -1010,6 +1048,10 @@ function proposalStateText(p){
   const expires=Math.max(0,Math.ceil((num(p.endsAt)-now())/1000));
   const votes=num(p.yes)+num(p.no);
   return `${votes} vote${votes===1?"":"s"} · ${expires}s left`;
+}
+
+function proposalCanonicalCost(p){
+  return p?.upgradeId?authoritativeUpgradeCost(p.upgradeId,num(game.upgrades?.[p.upgradeId])):0;
 }
 
 function renderProposal(){
@@ -1229,12 +1271,6 @@ async function flushClicks(){
   }
 }
 
-let passiveAt=0;
-function passiveTick(){
-  // Passive click generation is intentionally disabled.
-  return Promise.resolve();
-}
-
 function firebaseSafeKey(value){
   const s=String(value??"").trim();
   return Array.from(s, ch => ".#$[]/".includes(ch) ? "_" : ch).join("").slice(0,120) || "unknown";
@@ -1256,7 +1292,7 @@ async function proposeUpgrade(id){
   if(cooldownLeft>0){toast(`You need to wait ${Math.ceil(cooldownLeft/1000)}s before proposing another upgrade.`);return}
   if(proposal?.active){toast("There is already a vote running.");return}
   const level=num(game.upgrades?.[id]);
-  const cost=upgradeCost(id,level);
+  const cost=authoritativeUpgradeCost(id,level);
   if(num(game.globalClicks)<cost){toast("Not enough clicks.");return}
   const pRef=ref(db,"proposal/current");
   const proposalId=crypto.randomUUID();
@@ -1396,10 +1432,13 @@ async function finishProposal(){
 
     const stateTx=await runTransaction(ref(db,"game"),cur=>{
       cur=cur||{};
-      if(num(cur.globalClicks)<num(decided.cost))return cur;
-      cur.globalClicks=Math.max(0,num(cur.globalClicks)-num(decided.cost));
       cur.upgrades=cur.upgrades||{};
-      cur.upgrades[decided.upgradeId]=num(cur.upgrades[decided.upgradeId])+1;
+      const level=num(cur.upgrades[decided.upgradeId]);
+      const cost=authoritativeUpgradeCost(decided.upgradeId,level);
+      if(num(cur.globalClicks)<cost)return cur;
+      cur.globalClicks=Math.max(0,num(cur.globalClicks)-cost);
+      cur.upgrades[decided.upgradeId]=level+1;
+      cur.lastUpgradeCost=cost;
       return cur;
     });
 
@@ -1774,8 +1813,8 @@ function subscribe(){
   setInterval(sampleGlobalSecond,1000);
   setInterval(()=>{renderHome();renderStats();renderSuperChats();drawChart()},1000);
   setInterval(()=>updateSmallNumber("homeCombo",currentCombo()),100);
-  setInterval(passiveTick,2000);
-  setInterval(()=>{renderProposal();renderUpgrades();if(!finishingProposal)finishProposal()},1000);
+    setInterval(()=>{renderProposal();renderUpgrades();if(!finishingProposal)finishProposal()},1000);
+  setInterval(()=>{if(!repoLocked)verifyRepoVersion(true)},60000);
 }
 
 function animationTick(){
@@ -1857,7 +1896,9 @@ function closeSidebar(){
   el("mobileShade").classList.remove("show");
 }
 
-function enter(){
+async function enter(){
+  if(repoLocked)return;
+  if(!(await verifyRepoVersion(true)))return;
   const n=cleanName(el("nameInput").value);
   if(!n)return;
   name=n;
