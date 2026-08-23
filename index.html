@@ -550,7 +550,7 @@ let fnPropose=null;
 let fnVote=null;
 let fnChat=null;
 let uid="";
-let name="";
+let name=localStorage.getItem("clicklaborate_name")||"";
 
 let game={
   globalClicks:0,totalGenerated:0,rawClicks:0,rawGenerated:0,supportClicks:0,peakCps:0,peakCpsAt:0,
@@ -1513,9 +1513,17 @@ async function start(){
         console.warn(tag,"auth persistence setup failed; continuing with Firebase default",{code:persistErr?.code,message:persistErr?.message,error:persistErr});
       }
       if(!auth.currentUser) await signInAnonymously(auth);
-    onAuthStateChanged(auth,user=>{ uid=user?.uid||""; });
-      const authUid=auth.currentUser?.uid||"";
-      if(!authUid) throw new Error("Firebase returned no anonymous uid");
+      await new Promise(resolve=>{
+        const unsubscribe=onAuthStateChanged(auth,user=>{
+          if(user){
+            uid=user.uid;
+            unsubscribe();
+            resolve();
+          }
+        });
+      });
+      const authUid=auth.currentUser ? auth.currentUser.uid : "";
+      if(!authUid) throw new Error("Firebase returned no authenticated uid");
       console.info(tag,"anonymous auth ok",authUid);
     }catch(authErr){
       console.error(tag,"anonymous auth failed",{code:authErr?.code,message:authErr?.message,error:authErr});
@@ -1580,6 +1588,7 @@ window.addEventListener("beforeunload",()=>{
   if(db)set(ref(db,`presence/${firebaseSafeKey(uid)}`),{name,uid,online:false,lastSeen:now()}).catch(()=>{});
 });
 
+el("nameInput").value=name||"";
 el("sideName").textContent=name||"—";
 if(name){
   el("joinModal").classList.remove("show");
