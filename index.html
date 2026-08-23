@@ -468,7 +468,8 @@ const MILESTONE_USERS={
   5000000:"noobiegd"
 };
 
-const UPGRADE_EFFECT_SCALE=0.02;
+const UPGRADE_EFFECT_SCALE=0.001;
+const UPGRADE_PRICE_SCALE=0.06;
 
 const U=[
   ["clickPower", "Strong Finger", "Each click gives a bit more.", 245000, 2.9, "clickPower", 0.45, "👍"],
@@ -586,7 +587,7 @@ function upgradeCost(id,level){
   const d=U.find(x=>x[0]===id);
   if(!d)return Infinity;
   const lv=Math.max(0,num(level));
-  const base=num(d[3])*4;
+  const base=num(d[3])*UPGRADE_PRICE_SCALE;
   const curve=Math.max(1.01,num(d[4])+0.18);
   const levelPressure=1+0.14*lv*lv;
   return Math.floor(base*Math.pow(curve,lv)*levelPressure);
@@ -1052,10 +1053,10 @@ function sharedClicksPerClick(){
   mult*=1+e.combo*Math.min(30,Math.floor(combo/3));
   mult*=1+e.crit;
   mult*=1+e.double;
-  mult*=1+7*e.panic;
-  mult*=1+e.burst;
+  mult*=1+1.5*e.panic;
+  mult*=1+0.5*e.burst;
   if(Object.keys(milestones||{}).length)mult*=1+e.milestoneMult*Object.keys(milestones||{}).length;
-  return Math.max(1,(1+e.clickPower+e.rawBoost+e.refund)*(1+e.sideways)*mult);
+  return Math.max(1,(1+e.clickPower+e.rawBoost+e.refund)*(1+0.25*e.sideways)*mult);
 }
 
 function peakTimeText(ts){
@@ -1176,7 +1177,7 @@ async function flushClicks(){
   if(Math.random()<Math.min(.9,e.crit))mult*=2;
   if(Math.random()<Math.min(.95,e.double))mult*=2;
   if(Math.random()<Math.min(.9,e.panic))mult*=8;
-  mult*=1+e.burst;
+  mult*=1+0.5*e.burst;
   if(num(milestoneBonusCount())>0)mult*=1+e.milestoneMult*num(milestoneBonusCount());
   const generated=Math.max(raw,Math.round(raw*(1+e.clickPower+e.rawBoost+e.refund)*(1+e.sideways)*mult));
   try{
@@ -1205,7 +1206,7 @@ let passiveAt=0;
 async function passiveTick(){
   if(!db)return;
   const nowMs=now();
-  let gained=0,beforeGlobal=0,beforeGenerated=0,afterGlobal=0,afterGenerated=0;
+  let gained=0,beforeGlobal=0,beforeGenerated=0,beforeRaw=0,afterGlobal=0,afterGenerated=0,afterRaw=0;
   const e=effectData();
   await runTransaction(ref(db,"game"),cur=>{
     cur=cur||{};
@@ -1219,13 +1220,13 @@ async function passiveTick(){
     beforeGenerated=num(cur.totalGenerated);
     const people=activeUsers();
     let rate=e.passive+e.passiveFlat;
-    rate*=1+e.time*Math.min(30,elapsed);
-    rate*=1+e.uptime*Math.min(120,seconds.length);
+    rate*=1+e.time*Math.min(10,elapsed);
+    rate*=1+e.uptime*Math.min(30,seconds.length);
     rate*=1+e.globalMult;
-    rate+=people*e.crowd+e.globalPassive+e.sharedBattery*people+e.lastResort+e.final;
-    if(people===0)rate*=1+e.offline+e.offlineMult;
+    rate+=0.25*people*e.crowd+0.5*e.globalPassive+0.25*e.sharedBattery*people+0.2*e.lastResort+0.2*e.final;
+    if(people===0)rate*=1+0.25*e.offline+0.25*e.offlineMult;
     const scCount=Object.keys(superChats||{}).length;
-    rate*=1+e.superchatBonus*Math.min(20,scCount);
+    rate*=1+0.25*e.superchatBonus*Math.min(20,scCount);
     gained=rate*elapsed;
     afterGlobal=beforeGlobal+gained;
     afterGenerated=beforeGenerated+gained;
