@@ -241,7 +241,7 @@ button:disabled{cursor:not-allowed;opacity:.42}
 </style>
 </head>
 <body>
-<div class="version-label" aria-hidden="true">v1.5.8.1</div>
+<div class="version-label" aria-hidden="true">v1.5.9</div>
 <div id="repoLock" class="repo-lock" aria-hidden="true"><div class="repo-lock-card"><div class="repo-lock-title">Outdated build</div><div id="repoLockText" class="repo-lock-text">This page is not the current repository build.</div><div id="repoLockBuild" class="repo-lock-build"></div><button id="repoLockRefresh" class="btn primary">Refresh</button></div></div>
 
 <div id="joinModal" class="modal show">
@@ -362,6 +362,20 @@ button:disabled{cursor:not-allowed;opacity:.42}
           <div class="stat"><div id="statScCount" class="stat-v">0</div><div class="stat-l">Support events</div></div>
           <div class="stat"><div id="statClicksPerClick" class="stat-v">1.00</div><div class="stat-l">Clicks / click</div></div>
           <div class="stat"><div id="statSupportClicks" class="stat-v">0</div><div class="stat-l">Support clicks</div></div>
+        </div>
+
+        <div class="panel stats-block">
+          <div class="panel-head"><h2>Leaderboards</h2><div class="panel-note">shared</div></div>
+          <div class="milestone-columns" style="margin-top:12px">
+            <div class="milestone-part">
+              <div class="milestone-part-title">Top contributors</div>
+              <div id="leaderboardContributors" class="milestones"></div>
+            </div>
+            <div class="milestone-part">
+              <div class="milestone-part-title">Current top CPS</div>
+              <div id="leaderboardCps" class="milestones"></div>
+            </div>
+          </div>
         </div>
 
         <div class="panel stats-block">
@@ -538,6 +552,8 @@ let game={
   upgrades:{},lastTick:0
 };
 let presence={};
+let leaderboardContributors={};
+let leaderboardCps={};
 let seconds=[];
 let milestones={};
 let milestonesGlobal={};
@@ -569,7 +585,7 @@ let fxRates={EUR:1};
 let fxLoadedAt=0;
 let appCheckReady=false;
 
-const APP_VERSION="1.5.8.1";
+const APP_VERSION="1.5.9";
 const REPO_RAW_URL="https://raw.githubusercontent.com/NoobieGD/clicklaborate/main/index.html";
 let repoLocked=false;
 let repoCheckInFlight=null;
@@ -1132,7 +1148,17 @@ function peakTimeText(ts){
   return ts?new Date(num(ts)*1000).toLocaleString([], {dateStyle:"short",timeStyle:"medium"}):"—";
 }
 
+function renderLeaderboards(){
+  const contrib=Object.values(leaderboardContributors||{}).filter(x=>x&&typeof x==='object').sort((a,b)=>num(b.totalClicks)-num(a.totalClicks)).slice(0,10);
+  const cps=Object.values(leaderboardCps||{}).filter(x=>x&&typeof x==='object').sort((a,b)=>num(b.cps)-num(a.cps)||num(b.lastActive)-num(a.lastActive)).slice(0,10);
+  const contribEl=el("leaderboardContributors");
+  const cpsEl=el("leaderboardCps");
+  if(contribEl)contribEl.innerHTML=contrib.map((x,i)=>`<div class="milestone"><div class="ms-icon">${i+1}</div><div><div class="ms-num">${escapeText(x.name||"Anonymous")}</div><div class="ms-who">${fmt(x.totalClicks)} clicks contributed</div></div><div class="ms-who">${i<3?['🥇','🥈','🥉'][i]:''}</div></div>`).join("")||'<div class="sc-empty">No contributors yet.</div>';
+  if(cpsEl)cpsEl.innerHTML=cps.map((x,i)=>`<div class="milestone"><div class="ms-icon">${i+1}</div><div><div class="ms-num">${escapeText(x.name||"Anonymous")}</div><div class="ms-who">${fmt(x.cps)} CPS current</div></div><div class="ms-who">${i<3?['🥇','🥈','🥉'][i]:''}</div></div>`).join("")||'<div class="sc-empty">No CPS data yet.</div>';
+}
+
 function renderStats(){
+  renderLeaderboards();
   updateSmallNumber("statGlobal",game.globalClicks);
   updateSmallNumber("statGenerated",game.totalGenerated);
   updateSmallNumber("statCps",currentCps);
@@ -1203,8 +1229,21 @@ async function generateClicks(amount,rawDelta=0){
     return cur;
   });
   if(tx.committed){
-    await awardMilestones(beforeGlobal,afterGlobal,beforeGenerated,afterGenerated,beforeRaw,afterRaw);
     const currentSecond=serverSec();
+    await runTransaction(ref(db,`leaderboard/users/${firebaseSafeKey(uid)}`),cur=>{
+      cur=cur||{};
+      const prevSecond=num(cur.currentSecond);
+      const prevAmount=num(cur.currentSecondClicks);
+      return {
+        ...cur,uid,name,
+        totalClicks:num(cur.totalClicks)+num(amount),
+        currentSecond,
+        currentSecondClicks:prevSecond===currentSecond?prevAmount+num(amount):num(amount),
+        cps:prevSecond===currentSecond?num(cur.cps):prevAmount,
+        lastActive:Date.now()
+      };
+    }).catch(err=>console.error("[Clicklaborate Leaderboard] contribution write failed",{code:err?.code,message:err?.message,error:err}));
+    await awardMilestones(beforeGlobal,afterGlobal,beforeGenerated,afterGenerated,beforeRaw,afterRaw);
     await runTransaction(ref(db,`seconds/${currentSecond}`),v=>{
       v=v||{};
       v.cps=num(v.cps)+num(amount);
@@ -1282,8 +1321,10 @@ async function proposeUpgrade(id){
   if(activeUsers()<3){toast("At least 3 people need to be online.");return}
   let storedCooldown=0;
   try{
-    const cooldownSnap=await get(ref(db,"proposal/cooldown"));
-    storedCooldown=num(cooldownSnap.val()?.until||cooldownSnap.val());
+    const cooldownSnap=await get(ref(db,"proposal/cooldowns"));
+    const cooldowns=cooldownSnap.val()||{};
+    const entry=cooldowns[firebaseSafeKey(uid)];
+    storedCooldown=num(entry?.until||entry);
   }catch(err){
     console.error("[Clicklaborate Vote] cooldown read failed",{code:err?.code,message:err?.message,error:err});
   }
@@ -1412,8 +1453,13 @@ async function finishProposal(){
     const proposerUid=typeof decided.startedByUid==="string" ? decided.startedByUid.trim() : "";
     if(proposerUid){
       const until=num(decided.cooldownUntil)||sharedNow+60000;
+      const proposerKey=firebaseSafeKey(proposerUid);
       try{
-        await set(ref(db,"proposal/cooldown"),{until,uid:proposerUid});
+        await runTransaction(ref(db,"proposal/cooldowns"),cur=>{
+          cur=cur||{};
+          cur[proposerKey]={until,uid:proposerUid};
+          return cur;
+        });
       }catch(err){
         console.error("[Clicklaborate Vote] cooldown write failed",{
           code:err?.code,message:err?.message,uid:proposerUid,error:err
@@ -1635,6 +1681,21 @@ async function pollSuperChats(){
   }
 }
 
+async function finalizeLeaderboardCps(){
+  if(!db)return;
+  const currentSecond=serverSec();
+  const r=ref(db,`leaderboard/users/${firebaseSafeKey(uid)}`);
+  await runTransaction(r,cur=>{
+    if(!cur)return cur;
+    const cs=num(cur.currentSecond);
+    const amt=num(cur.currentSecondClicks);
+    if(cs<currentSecond){
+      return {...cur,cps:cs===currentSecond-1?amt:0,currentSecond:currentSecond,currentSecondClicks:0,lastActive:num(cur.lastActive)||0};
+    }
+    return cur;
+  }).catch(()=>{});
+}
+
 async function sampleGlobalSecond(){
   if(!db)return;
   const s=serverSec()-1;
@@ -1782,6 +1843,11 @@ function subscribe(){
   onChildChanged(presenceRef,s=>applyPresence(s),e=>fail("presence",e));
   onChildRemoved(presenceRef,s=>applyPresence(s,true),e=>fail("presence",e));
 
+  const contributorRef=query(ref(db,"leaderboard/users"),orderByChild("totalClicks"),limitToLast(10));
+  onValue(contributorRef,s=>{leaderboardContributors=s.val()||{};renderLeaderboards()},e=>fail("leaderboard/users",e));
+  const cpsBoardRef=query(ref(db,"leaderboard/users"),orderByChild("cps"),limitToLast(10));
+  onValue(cpsBoardRef,s=>{leaderboardCps=s.val()||{};renderLeaderboards()},e=>fail("leaderboard/cps",e));
+
   const secondsRef=query(ref(db,"seconds"),orderByChild("at"),limitToLast(60));
   onValue(secondsRef,s=>{
     const v=s.val()||{};
@@ -1810,7 +1876,7 @@ function subscribe(){
 
   seedMilestones();
   setInterval(()=>{if(queuedRaw>0)flushClicks()},250);
-  setInterval(sampleGlobalSecond,1000);
+  setInterval(()=>{finalizeLeaderboardCps();sampleGlobalSecond()},1000);
   setInterval(()=>{renderHome();renderStats();renderSuperChats();drawChart()},1000);
   setInterval(()=>updateSmallNumber("homeCombo",currentCombo()),100);
     setInterval(()=>{renderProposal();renderUpgrades();if(!finishingProposal)finishProposal()},1000);
