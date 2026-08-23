@@ -536,13 +536,27 @@ function totalUpgradeLevels(){
   return U.reduce((a,d)=>a+num(game.upgrades?.[d[0]]),0);
 }
 
-let rollLastAnimatedSecond=0;
+let rollLastAnimatedSecond=-1;
 let rollDisplayValue=0;
+let serverTimeOffset=0;
+let rollAnimating=false;
+let rollQueuedTarget=null;
 
-function makeRollDom(value){
+function serverNow(){
+  return Date.now()+serverTimeOffset;
+}
+
+function serverSec(){
+  return Math.floor(serverNow()/1000);
+}
+
+function makeRollDom(value, oldValue=value){
   const node=el("mainCounter");
   node.innerHTML="";
+  const oldDigits=[...oldValue].filter(ch=>/[0-9]/.test(ch)).map(Number);
+  const newDigits=[...value].filter(ch=>/[0-9]/.test(ch)).map(Number);
   const cells=[];
+  let di=0;
   for(const ch of value){
     if(!/[0-9]/.test(ch)){
       const mark=document.createElement("span");
@@ -553,23 +567,26 @@ function makeRollDom(value){
     }
     const cell=document.createElement("span");
     cell.className="roll-digit";
-    cell.dataset.current=String(Number(ch));
-    cell.dataset.target=String(Number(ch));
+    const oldIndex=oldDigits.length-newDigits.length+di;
+    const from=oldIndex>=0?oldDigits[oldIndex]:0;
+    cell.dataset.current=String(from);
+    cell.dataset.target=String(newDigits[di]);
     const track=document.createElement("span");
     track.className="roll-track";
     const only=document.createElement("span");
-    only.textContent=ch;
+    only.textContent=String(from);
     track.appendChild(only);
     cell.appendChild(track);
     node.appendChild(cell);
     cells.push(cell);
+    di++;
   }
   node.dataset.value=value;
   return cells;
 }
 
 function animateRollGroup(cells,digits){
-  if(!cells.length)return;
+  if(!cells.length)return false;
   const jobs=[];
   for(let i=0;i<cells.length;i++){
     const cell=cells[i];
@@ -580,77 +597,101 @@ function animateRollGroup(cells,digits){
     cell.dataset.target=String(target);
     if(current===target)continue;
     const steps=(target-current+10)%10||10;
-    track.innerHTML="";
+    const frag=document.createDocumentFragment();
     for(let n=0;n<=steps;n++){
       const d=document.createElement("span");
       d.textContent=String((current+n)%10);
-      track.appendChild(d);
+      frag.appendChild(d);
     }
+    track.innerHTML="";
+    track.appendChild(frag);
     track.style.transition="none";
     track.style.transform="translateY(0)";
     jobs.push({cell,track,target,steps});
   }
-  if(!jobs.length)return;
+  if(!jobs.length)return false;
+  rollAnimating=true;
+  let finished=0;
+  let doneCalled=false;
+  const finishAll=()=>{
+    if(doneCalled)return;
+    doneCalled=true;
+    for(const job of jobs){
+      const latest=((Number(job.cell.dataset.target)||0)%10+10)%10;
+      job.track.style.transition="none";
+      job.track.innerHTML="<span>"+latest+"</span>";
+      job.track.style.transform="translateY(0)";
+      job.cell.dataset.current=String(latest);
+    }
+    rollAnimating=false;
+    if(rollQueuedTarget!==null){
+      const next=rollQueuedTarget;
+      rollQueuedTarget=null;
+      updateRoll(next,true);
+    }
+  };
+  const finishOne=()=>{
+    finished++;
+    if(finished>=jobs.length)finishAll();
+  };
   requestAnimationFrame(()=>requestAnimationFrame(()=>{
     for(const job of jobs){
-      if(!job.cell.isConnected)continue;
+      if(!job.cell.isConnected){finishOne();continue;}
+      job.track.addEventListener("transitionend",finishOne,{once:true});
       job.track.style.transition="transform 1000ms cubic-bezier(.37,0,.63,1)";
       job.track.style.transform=`translateY(-${job.steps}em)`;
-      const finish=()=>{
-        const latest=((Number(job.cell.dataset.target)||0)%10+10)%10;
-        job.track.removeEventListener("transitionend",finish);
-        job.track.style.transition="none";
-        job.track.innerHTML="<span>"+latest+"</span>";
-        job.track.style.transform="translateY(0)";
-        job.cell.dataset.current=String(latest);
-      };
-      job.track.addEventListener("transitionend",finish,{once:true});
-      setTimeout(()=>finish(),1050);
     }
   }));
+  setTimeout(finishAll,1050);
+  return true;
 }
 
-function updateRoll(target){
+function updateRoll(target,force=false){
   const node=el("mainCounter");
   const rawTarget=Math.max(0,Math.floor(num(target)));
-  const targetText=rawTarget.toLocaleString("en-US");
-  const currentText=rollDisplayValue.toLocaleString("en-US");
   if(!node.children.length){
     rollDisplayValue=rawTarget;
-    makeRollDom(targetText);
-    node.dataset.target=String(rawTarget);
+    makeRollDom(rawTarget.toLocaleString("en-US"));
     node.dataset.display=String(rawTarget);
+    node.dataset.target=String(rawTarget);
     return;
   }
-  if(rawTarget===rollDisplayValue)return;
-  const thisSecond=sec();
-  if(thisSecond===rollLastAnimatedSecond)return;
-  rollLastAnimatedSecond=thisSecond;
-
-  const currentDigits=[...currentText].filter(ch=>/[0-9]/.test(ch)).length;
-  const nextDigits=[...targetText].filter(ch=>/[0-9]/.test(ch)).length;
-  if(currentDigits!==nextDigits){
-    const cells=makeRollDom(currentText);
-    const digits=[...targetText].filter(ch=>/[0-9]/.test(ch)).map(Number);
-    const targetCells=makeRollDom(targetText);
-    for(let i=0;i<targetCells.length;i++){
-      const from=[...currentText].filter(ch=>/[0-9]/.test(ch));
-      const idx=from.length-targetCells.length+i;
-      const d=idx>=0?Number(from[idx]):0;
-      targetCells[i].dataset.current=String(d);
-      targetCells[i].querySelector(".roll-track").innerHTML="<span>"+d+"</span>";
-    }
-    animateRollGroup(targetCells,digits);
+  if(rawTarget===rollDisplayValue&&!rollAnimating)return;
+  if(rollAnimating&&!force){
+    rollQueuedTarget=rawTarget;
+    return;
+  }
+  if(!force){
+    const stamp=serverSec();
+    if(stamp===rollLastAnimatedSecond)return;
+    rollLastAnimatedSecond=stamp;
+  }
+  const currentValue=rollDisplayValue.toLocaleString("en-US");
+  const targetValue=rawTarget.toLocaleString("en-US");
+  const currentDigits=[...currentValue].filter(ch=>/[0-9]/.test(ch)).map(Number);
+  const targetDigits=[...targetValue].filter(ch=>/[0-9]/.test(ch)).map(Number);
+  if(currentDigits.length!==targetDigits.length){
+    makeRollDom(targetValue,currentValue);
   }else{
     const cells=[...node.children].filter(x=>x.classList.contains("roll-digit"));
-    const digits=[...targetText].filter(ch=>/[0-9]/.test(ch)).map(Number);
-    if(cells.length!==digits.length)return;
-    animateRollGroup(cells,digits);
-    node.dataset.value=targetText;
+    if(cells.length!==targetDigits.length){
+      makeRollDom(targetValue,currentValue);
+    }else{
+      cells.forEach((cell,i)=>cell.dataset.target=String(targetDigits[i]));
+    }
+  }
+  const cells=[...node.children].filter(x=>x.classList.contains("roll-digit"));
+  if(currentDigits.length!==targetDigits.length){
+    const fresh=[...node.children].filter(x=>x.classList.contains("roll-digit"));
+    fresh.forEach((cell,i)=>cell.dataset.current=String(currentDigits[currentDigits.length-fresh.length+i]??0));
+    animateRollGroup(fresh,targetDigits);
+  }else{
+    animateRollGroup(cells,targetDigits);
   }
   rollDisplayValue=rawTarget;
   node.dataset.target=String(rawTarget);
   node.dataset.display=String(rawTarget);
+  node.dataset.value=targetValue;
 }
 
 function updateSmallNumber(id,value){
@@ -671,13 +712,13 @@ function recentCpsSeconds(){
 }
 
 function deriveCps(){
-  const t=sec();
+  const t=serverSec();
   const current=seconds.find(x=>num(x.second)===t);
   return current?num(current.cps):0;
 }
 
 function deriveMinute(){
-  const t=sec();
+  const t=serverSec();
   return seconds.filter(x=>t-num(x.second)<60).reduce((a,x)=>a+num(x.cps),0);
 }
 
@@ -798,16 +839,18 @@ function renderProposal(){
   box.classList.add("show");
   const d=U.find(x=>x[0]===proposal.upgradeId);
   const yes=num(proposal.yes),no=num(proposal.no),total=yes+no;
-  const yesPct=total?yes/total*100:50;
+  const yesPct=total?yes/total*100:0;
+  const noPct=total?no/total*100:0;
   el("proposalIcon").textContent=d?.[7]||"🛒";
   el("proposalTitle").textContent=`${d?.[1]||"Upgrade"} is on the chopping block`;
   el("proposalSub").textContent=`Costs ${fmt(proposal.cost)} global clicks. At least 3 people had to be online to start this vote.`;
   el("yesFill").style.width=`${yesPct}%`;
-  el("noFill").style.width=`${100-yesPct}%`;
+  el("noFill").style.width=`${noPct}%`;
   el("yesCount").textContent=String(yes);
   el("noCount").textContent=String(no);
   const voted=!!proposal.voters?.[uid];
-  el("voteInfo").textContent=voted?`You voted ${proposal.voters[uid]}. ${proposalStateText(proposal)}`:proposalStateText(proposal);
+  const voteText=proposalStateText(proposal);
+  el("voteInfo").textContent=voted?`You voted ${proposal.voters[uid]}. ${voteText}`:`Voting open · ${voteText}`;
   el("voteYes").disabled=voted;
   el("voteNo").disabled=voted;
 }
@@ -998,7 +1041,7 @@ async function passiveTick(){
     return cur;
   });
   if(gained>0){
-    await runTransaction(ref(db,`seconds/${sec()}`),v=>{
+    await runTransaction(ref(db,`seconds/${serverSec()}`),v=>{
       v=v||{};
       v.cps=num(v.cps)+gained;
       return v;
@@ -1020,7 +1063,7 @@ async function proposeUpgrade(id){
   try{
     const tx=await runTransaction(pRef,cur=>{
       if(cur?.active)return cur;
-      return {id:proposalId,active:true,upgradeId:id,cost,yes:0,no:0,voters:{},startedBy:name,startedAt:now(),endsAt:now()+VOTE_SECONDS*1000};
+      return {id:proposalId,active:true,locked:true,cancelable:false,upgradeId:id,cost,yes:0,no:0,voters:{},startedBy:name,startedAt:now(),endsAt:now()+VOTE_SECONDS*1000};
     });
     const saved=tx.snapshot?.val?.()||null;
     if(!tx.committed||saved?.id!==proposalId){toast("A vote is already running.");return}
@@ -1037,12 +1080,15 @@ async function castVote(choice){
   if(!proposal?.active||proposal.voters?.[uid])return;
   try{
     const tx=await runTransaction(ref(db,"proposal/current"),cur=>{
-      if(!cur?.active)return cur;
+      if(!cur?.active||cur.cancelable===true)return cur;
       if(num(cur.endsAt)<=now())return cur;
       cur.voters=cur.voters||{};
       if(cur.voters[uid])return cur;
       cur.voters[uid]=choice;
       cur[choice]=num(cur[choice])+1;
+      cur.active=true;
+      cur.locked=true;
+      cur.cancelable=false;
       return cur;
     });
     if(!tx.committed){toast("Vote could not be recorded.");return}
@@ -1059,10 +1105,15 @@ async function finishProposal(){
   if(!current?.active||num(current.endsAt)>now())return;
   const pRef=ref(db,"proposal/current");
   try{
+    const serverNowSnap=await get(ref(db,".info/serverTimeOffset"));
+    const sharedNow=Date.now()+num(serverNowSnap.val());
+    if(sharedNow<num(current.endsAt))return;
     const decision=await runTransaction(pRef,cur=>{
-      if(!cur?.active||cur.id!==current.id||num(cur.endsAt)>now())return cur;
+      if(!cur?.active||cur.id!==current.id||cur.cancelable===true)return cur;
+      const nowValue=Date.now()+num(serverNowSnap.val());
+      if(nowValue<num(cur.endsAt))return cur;
       const passed=num(cur.yes)>num(cur.no);
-      return {...cur,active:false,resolved:true,passed,resolvedAt:now()};
+      return {...cur,active:false,locked:true,cancelable:false,resolved:true,passed,resolvedAt:nowValue};
     });
     if(!decision.committed)return;
     const decided=decision.snapshot?.val();
@@ -1238,7 +1289,7 @@ async function pollSuperChats(){
 
 async function sampleGlobalSecond(){
   if(!db)return;
-  const s=sec()-1;
+  const s=serverSec()-1;
   let pointCps=0;
   const tx=await runTransaction(ref(db,`seconds/${s}`),v=>{
     v=v||{};
@@ -1491,6 +1542,8 @@ async function start(){
       throw authErr;
     }
     db=getDatabase(app);
+    const offsetRef=ref(db,".info/serverTimeOffset");
+    onValue(offsetRef,snap=>{serverTimeOffset=num(snap.val());});
     const connectedRef=ref(db,".info/connected");
     onValue(connectedRef,snap=>{
       const connected=snap.val()===true;
