@@ -592,7 +592,7 @@ let fxRates={EUR:1};
 let fxLoadedAt=0;
 let appCheckReady=false;
 
-const APP_VERSION="pre-1.7-fix2";
+const APP_VERSION="pre-1.7-fix3";
 const GITHUB_RAW_INDEX_URL="https://raw.githubusercontent.com/NoobieGD/clicklaborate/main/index.html";
 let repoLocked=false;
 let repoCheckInFlight=null;
@@ -1215,7 +1215,10 @@ function queueClick(){
   localClicksTotal++;
   localStorage.setItem("clicklaborate_raw",String(localClicksTotal));
   renderHome();
-  if(!flushTimer)flushTimer=setTimeout(()=>{flushTimerasync function flushClicks(){
+  if(!flushTimer)flushTimer=setTimeout(()=>{flushTimer=0;flushClicks()},60);
+}
+
+async function flushClicks(){
   if(flushBusy||queuedRaw<=0||!(auth&&auth.currentUser))return;
   flushBusy=true;
   const raw=queuedRaw;
@@ -1225,21 +1228,19 @@ function queueClick(){
     if(result&&result.generated!=null){
       localContribution.push({at:now(),amount:num(result.generated)});
     }
-    // Do not overwrite the local game snapshot from the function response.
-    // The authoritative /game listener is the single source of truth for every client.
+    // The authoritative /game listener is the shared source of truth.
     renderHome();
     clickRetryDelay=1000;
   }catch(err){
     queuedRaw+=raw;
     console.error("[Clicklaborate API] click failed",{code:err&&err.code,status:err&&err.status,message:err&&err.message,error:err});
-    if(err&&err.status===429){toast("You're clicking too quickly.");}
-    else toast("Click failed. Retrying shortly.");
+    if(err&&err.status===429){
+      toast("You're clicking too quickly.");
+    }
     setTimeout(()=>{if(queuedRaw>0)flushClicks();},clickRetryDelay);
     clickRetryDelay=Math.min(clickRetryDelay*2,30000);
   }finally{
     flushBusy=false;
-  }
-}flushClicks()},100);
   }
 }
 
