@@ -167,7 +167,7 @@ button:disabled{cursor:not-allowed;opacity:.42}
 .vote-wrap{padding:12px}
 .vote-bar{height:58px;border:1px solid var(--line);border-radius:13px;display:flex;overflow:hidden;position:relative;background:#111}
 .vote-yes,.vote-no{height:100%;transition:width 260ms var(--sine)}
-.vote-yes{background:#5aa66d}.vote-no{background:#a85e5e}
+.vote-yes{background:#a85e5e}.vote-no{background:#5aa66d}
 .vote-count{position:absolute;top:50%;transform:translateY(-50%);font-family:"Roboto",Arial,sans-serif;font-weight:900;font-size:1.25rem}
 .vote-count.yes{right:10px;color:#07170c}.vote-count.no{left:10px;color:#1b0606}
 .vote-meta{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;margin-top:9px}
@@ -343,11 +343,15 @@ button:disabled{cursor:not-allowed;opacity:.42}
           <div class="stat"><div id="statGenerated" class="stat-v">0</div><div class="stat-l">Total generated</div></div>
           <div class="stat"><div id="statCps" class="stat-v">0</div><div class="stat-l">Current CPS</div></div>
           <div class="stat"><div id="statPeak" class="stat-v">0</div><div class="stat-l">All-time peak CPS</div></div>
+          <div class="stat"><div id="statPeakTime" class="stat-v">—</div><div class="stat-l">All-time peak time</div></div>
           <div class="stat"><div id="statSessionPeak" class="stat-v">0</div><div class="stat-l">Session peak CPS</div></div>
+          <div class="stat"><div id="statSessionPeakTime" class="stat-v">—</div><div class="stat-l">Session peak time</div></div>
           <div class="stat"><div id="statOnline" class="stat-v">0</div><div class="stat-l">Online now</div></div>
           <div class="stat"><div id="statUpgradeCount" class="stat-v">0</div><div class="stat-l">Upgrade levels</div></div>
           <div class="stat"><div id="statScRevenue" class="stat-v">€0.00</div><div class="stat-l">Global support revenue</div></div>
           <div class="stat"><div id="statScCount" class="stat-v">0</div><div class="stat-l">Support events</div></div>
+          <div class="stat"><div id="statClicksPerClick" class="stat-v">1.00</div><div class="stat-l">Clicks / click</div></div>
+          <div class="stat"><div id="statSupportClicks" class="stat-v">0</div><div class="stat-l">Support clicks</div></div>
         </div>
 
         <div class="panel stats-block">
@@ -385,8 +389,8 @@ button:disabled{cursor:not-allowed;opacity:.42}
   </div>
   <div class="vote-wrap">
     <div class="vote-bar">
-      <div id="yesFill" class="vote-yes" style="width:50%"></div>
-      <div id="noFill" class="vote-no" style="width:50%"></div>
+      <div id="yesFill" class="vote-yes" style="width:0%"></div>
+      <div id="noFill" class="vote-no" style="width:0%"></div>
       <div id="yesCount" class="vote-count yes">0</div>
       <div id="noCount" class="vote-count no">0</div>
     </div>
@@ -404,7 +408,7 @@ button:disabled{cursor:not-allowed;opacity:.42}
 
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
-import {getDatabase,ref,onValue,set,update,push,get,runTransaction,onDisconnect,query,orderByChild,limitToLast,remove,onChildAdded,onChildChanged,onChildRemoved} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-database.js";
+import {getDatabase,ref,onValue,set,update,push,get,runTransaction,onDisconnect,query,orderByChild,limitToLast,remove,onChildAdded,onChildChanged,onChildRemoved,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-database.js";
 import {getAuth,signInAnonymously} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 import {initializeAppCheck,ReCaptchaV3Provider,getToken as getAppCheckToken} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app-check.js";
 
@@ -465,17 +469,19 @@ let name=localStorage.getItem("clicklaborate_name")||"";
 localStorage.setItem("clicklaborate_uid",uid);
 
 let game={
-  globalClicks:0,totalGenerated:0,rawClicks:0,peakCps:0,
+  globalClicks:0,totalGenerated:0,rawClicks:0,rawGenerated:0,supportClicks:0,peakCps:0,peakCpsAt:0,
   upgrades:{},lastTick:0
 };
 let presence={};
 let seconds=[];
 let milestones={};
 let proposal=null;
+let proposalCooldownUntil=0;
 let superChats={};
 let chatMessages={};
 let youtube={streamUrl:"",liveChatId:"",pageToken:"",pollerLease:0,lastPoll:0};
 let localClicks=[];
+let localContribution=[];
 let queuedRaw=0;
 let flushBusy=false;
 let flushTimer=0;
@@ -486,6 +492,7 @@ let lastKnownTotal=0;
 let rollTarget=0;
 let currentCps=0;
 let sessionPeakCps=0;
+let sessionPeakCpsAt=0;
 let fxRates={EUR:1};
 let fxLoadedAt=0;
 let appCheckReady=false;
@@ -702,24 +709,41 @@ function updateSmallNumber(id,value){
   node.textContent=text;
 }
 
+function secondMap(){
+  const map=new Map();
+  for(const x of seconds)map.set(num(x.second),num(x.cps));
+  return map;
+}
+
 function latestSeconds(){
-  return seconds.slice().sort((a,b)=>num(a.second)-num(b.second));
+  const t=serverSec();
+  const map=secondMap();
+  const out=[];
+  for(let i=59;i>=0;i--){
+    const second=t-i;
+    out.push({second,cps:num(map.get(second)),at:second});
+  }
+  return out;
 }
 
 function recentCpsSeconds(){
-  const t=sec();
-  return seconds.filter(x=>t-num(x.second)<5).sort((a,b)=>num(a.second)-num(b.second));
+  const t=serverSec();
+  const map=secondMap();
+  const out=[];
+  for(let i=4;i>=0;i--){
+    const second=t-i;
+    out.push({second,cps:num(map.get(second)),at:second});
+  }
+  return out;
 }
 
 function deriveCps(){
   const t=serverSec();
-  const current=seconds.find(x=>num(x.second)===t);
-  return current?num(current.cps):0;
+  return num(secondMap().get(t));
 }
 
 function deriveMinute(){
-  const t=serverSec();
-  return seconds.filter(x=>t-num(x.second)<60).reduce((a,x)=>a+num(x.cps),0);
+  return latestSeconds().reduce((a,x)=>a+num(x.cps),0);
 }
 
 function refreshCps(){
@@ -754,10 +778,20 @@ function euroValue(amount,currency){
   return rate>0?num(amount)/rate:num(amount);
 }
 
-function localCps(){
+function localContributionCps(){
+  const t=now();
+  localContribution=localContribution.filter(x=>t-x.at<1000);
+  return localContribution.reduce((sum,x)=>sum+num(x.amount),0);
+}
+
+function pruneLocalClicks(){
   const t=now();
   localClicks=localClicks.filter(x=>t-x<1000);
   return localClicks.length;
+}
+
+function localCps(){
+  return localContributionCps();
 }
 
 
@@ -893,12 +927,36 @@ function currentCombo(){
   return Math.max(0,num(game.combo));
 }
 
+function sharedClicksPerClick(){
+  const e=effectData();
+  const combo=Math.max(0,currentCombo());
+  let mult=1+e.mult+e.clickMult+e.final+(Math.max(0,activeUsers()-1))*e.group;
+  mult*=1+e.combo*Math.max(0,Math.floor(combo/2));
+  mult*=1+e.crit;
+  mult*=1+e.double;
+  mult*=1+7*e.panic;
+  mult*=1+e.burst;
+  if(Object.keys(milestones||{}).length)mult*=1+e.milestoneMult*Object.keys(milestones||{}).length;
+  return Math.max(1,(1+e.clickPower+e.rawBoost+e.refund)*(1+e.sideways)*mult);
+}
+
+function peakTimeText(ts){
+  return ts?new Date(num(ts)*1000).toLocaleString([], {dateStyle:"short",timeStyle:"medium"}):"—";
+}
+
 function renderStats(){
   updateSmallNumber("statGlobal",game.globalClicks);
   updateSmallNumber("statGenerated",game.totalGenerated);
   updateSmallNumber("statCps",currentCps);
   updateSmallNumber("statPeak",game.peakCps);
+  const peakTime=el("statPeakTime");
+  if(peakTime)peakTime.textContent=peakTimeText(game.peakCpsAt);
   updateSmallNumber("statSessionPeak",sessionPeakCps);
+  const sessionTime=el("statSessionPeakTime");
+  if(sessionTime)sessionTime.textContent=peakTimeText(sessionPeakCpsAt);
+  const cpc=el("statClicksPerClick");
+  if(cpc)cpc.textContent=sharedClicksPerClick().toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+  updateSmallNumber("statSupportClicks",game.supportClicks);
   updateSmallNumber("statOnline",activeUsers());
   updateSmallNumber("statUpgradeCount",totalUpgradeLevels());
   updateSmallNumber("sideOnline",activeUsers());
@@ -941,6 +999,7 @@ async function generateClicks(amount,rawDelta=0){
     cur.globalClicks=num(cur.globalClicks)+num(amount);
     cur.totalGenerated=num(cur.totalGenerated)+num(amount);
     cur.rawClicks=afterRaw;
+    if(rawDelta>0)cur.rawGenerated=num(cur.rawGenerated)+num(amount);
     if(rawDelta>0){
       const active=(now()-num(cur.lastRawAt))<1000;
       cur.combo=active?num(cur.combo)+num(rawDelta):num(rawDelta);
@@ -950,7 +1009,7 @@ async function generateClicks(amount,rawDelta=0){
   });
   if(tx.committed){
     if(rawDelta>0)awardMilestones(beforeRaw,afterRaw);
-    const currentSecond=sec();
+    const currentSecond=serverSec();
     await runTransaction(ref(db,`seconds/${currentSecond}`),v=>{
       v=v||{};
       v.cps=num(v.cps)+num(amount);
@@ -962,6 +1021,7 @@ async function generateClicks(amount,rawDelta=0){
         const found=seconds.find(x=>num(x.second)===currentSecond);
         if(found)found.cps=value;
         else seconds.push({second:currentSecond,cps:value,at:currentSecond});
+        seconds=seconds.slice().sort((a,b)=>num(a.second)-num(b.second)).slice(-60);
       }
     }).catch(err=>{
       console.error("[Clicklaborate CPS] second write failed",{code:err?.code,message:err?.message,error:err});
@@ -986,7 +1046,7 @@ async function flushClicks(){
   queuedRaw=0;
   const e=effectData();
   const comboLevel=currentCombo();
-  let mult=1+e.mult+e.clickMult+e.final+(activeUsers()-1)*e.group+(localClicks.length>=10?e.heat:0);
+  let mult=1+e.mult+e.clickMult+e.final+(activeUsers()-1)*e.group+(pruneLocalClicks()>=10?e.heat:0);
   mult*=1+e.combo*Math.min(60,Math.floor(comboLevel/2));
   if(Math.random()<Math.min(.9,e.crit))mult*=2;
   if(Math.random()<Math.min(.95,e.double))mult*=2;
@@ -996,6 +1056,8 @@ async function flushClicks(){
   const generated=Math.max(raw,Math.round(raw*(1+e.clickPower+e.rawBoost+e.refund)*(1+e.sideways)*mult));
   try{
     await generateClicks(generated,raw);
+    localContribution.push({at:now(),amount:generated});
+    renderHome();
   }catch(err){
     queuedRaw+=raw;
     console.error("[Clicklaborate Multiplayer] click sync failed",{
@@ -1041,9 +1103,11 @@ async function passiveTick(){
     return cur;
   });
   if(gained>0){
-    await runTransaction(ref(db,`seconds/${serverSec()}`),v=>{
+    const passiveSecond=serverSec();
+    await runTransaction(ref(db,`seconds/${passiveSecond}`),v=>{
       v=v||{};
       v.cps=num(v.cps)+gained;
+      v.at=passiveSecond;
       return v;
     }).catch(()=>{});
     refreshCps();
@@ -1054,6 +1118,16 @@ async function proposeUpgrade(id){
   const d=U.find(x=>x[0]===id);
   if(!d)return;
   if(activeUsers()<3){toast("At least 3 people need to be online.");return}
+  let storedCooldown=0;
+  try{
+    const cooldownSnap=await get(ref(db,`proposal/cooldowns/${uid}`));
+    storedCooldown=num(cooldownSnap.val()?.until||cooldownSnap.val());
+  }catch(err){
+    console.error("[Clicklaborate Vote] cooldown read failed",{code:err?.code,message:err?.message,error:err});
+  }
+  proposalCooldownUntil=Math.max(proposalCooldownUntil,storedCooldown);
+  const cooldownLeft=Math.max(0,proposalCooldownUntil-num(serverNow()));
+  if(cooldownLeft>0){toast(`You need to wait ${Math.ceil(cooldownLeft/1000)}s before proposing another upgrade.`);return}
   if(proposal?.active){toast("There is already a vote running.");return}
   const level=num(game.upgrades?.[id]);
   const cost=upgradeCost(id,level);
@@ -1063,7 +1137,7 @@ async function proposeUpgrade(id){
   try{
     const tx=await runTransaction(pRef,cur=>{
       if(cur?.active)return cur;
-      return {id:proposalId,active:true,locked:true,cancelable:false,upgradeId:id,cost,yes:0,no:0,voters:{},startedBy:name,startedAt:now(),endsAt:now()+VOTE_SECONDS*1000};
+      return {id:proposalId,active:true,locked:true,cancelable:false,upgradeId:id,cost,yes:0,no:0,voters:{},startedBy:name,startedByUid:uid,startedAt:now(),endsAt:now()+VOTE_SECONDS*1000};
     });
     const saved=tx.snapshot?.val?.()||null;
     if(!tx.committed||saved?.id!==proposalId){toast("A vote is already running.");return}
@@ -1112,17 +1186,23 @@ async function finishProposal(){
       if(!cur?.active||cur.id!==current.id||cur.cancelable===true)return cur;
       const nowValue=Date.now()+num(serverNowSnap.val());
       if(nowValue<num(cur.endsAt))return cur;
-      const passed=num(cur.yes)>num(cur.no);
-      return {...cur,active:false,locked:true,cancelable:false,resolved:true,passed,resolvedAt:nowValue};
+      const yes=num(cur.yes),no=num(cur.no);
+      const passed=yes>no;
+      return {...cur,active:false,locked:true,cancelable:false,resolved:true,passed,tie:yes===no,resolvedAt:nowValue,cooldownUntil:nowValue+60000};
     });
     if(!decision.committed)return;
     const decided=decision.snapshot?.val();
     if(!decided)return;
+    if(decided.startedByUid){
+      const until=num(decided.cooldownUntil)||sharedNow+60000;
+      await update(ref(db,`proposal/cooldowns/${decided.startedByUid}`),{until}).catch(err=>console.error("[Clicklaborate Vote] cooldown write failed",{code:err?.code,message:err?.message,error:err}));
+      if(decided.startedByUid===uid)proposalCooldownUntil=Math.max(proposalCooldownUntil,until);
+    }
     if(!decided.passed){
       proposal=null;
       renderProposal();
       renderUpgrades();
-      toast("Vote finished: No wins.");
+      toast(decided.tie?"Vote finished: Tie. Upgrade not applied.":"Vote finished: No wins.");
       return;
     }
     const stateTx=await runTransaction(ref(db,"game"),cur=>{
@@ -1237,7 +1317,10 @@ async function recordSuperChat(row){
     return;
   }
   await loadFx();
-  const cpsAtDonation=deriveCps();
+  const donationSecond=serverSec();
+  const exact=seconds.find(x=>num(x.second)===donationSecond);
+  const recent=seconds.filter(x=>num(x.second)<=donationSecond&&donationSecond-num(x.second)<5).sort((a,b)=>num(b.second)-num(a.second));
+  const cpsAtDonation=exact?num(exact.cps):recent.length?num(recent[0].cps):Math.max(0,num(currentCps));
   const amountEur=euroValue(amount,currency);
   const clicks=Math.max(0,Math.round(cpsAtDonation*amountEur*100));
   const data={
@@ -1258,7 +1341,26 @@ async function recordSuperChat(row){
       cur.clicks=num(cur.clicks)+clicks;
       return cur;
     }).catch(()=>{});
-    if(clicks>0)await generateClicks(clicks,0);
+    if(clicks>0){
+      const addTx=await runTransaction(ref(db,"game"),cur=>{
+        cur=cur||{};
+        cur.globalClicks=num(cur.globalClicks)+clicks;
+        cur.totalGenerated=num(cur.totalGenerated)+clicks;
+        cur.supportClicks=num(cur.supportClicks)+clicks;
+        return cur;
+      });
+      if(addTx.committed){
+        const supportSecond=serverSec();
+        await runTransaction(ref(db,`seconds/${supportSecond}`),v=>{
+          v=v||{};
+          v.cps=num(v.cps)+clicks;
+          v.at=supportSecond;
+          return v;
+        }).catch(err=>console.error("[Clicklaborate SuperChat] CPS write failed",{code:err?.code,message:err?.message}));
+      }else{
+        console.error("[Clicklaborate SuperChat] click award transaction failed");
+      }
+    }
   }
 }
 
@@ -1303,21 +1405,49 @@ async function sampleGlobalSecond(){
   if(!tx||!tx.committed)return;
   const fresh=num(tx.snapshot?.val?.()?.cps??pointCps);
   pointCps=fresh;
-  sessionPeakCps=Math.max(sessionPeakCps,pointCps);
+  if(pointCps>sessionPeakCps){
+    sessionPeakCps=pointCps;
+    sessionPeakCpsAt=s;
+  }
   let peakAfter=game.peakCps;
-  const peakTx=await runTransaction(ref(db,"game/peakCps"),v=>{
-    const next=Math.max(num(v),pointCps);
-    peakAfter=next;
-    return next;
+  let peakAtAfter=game.peakCpsAt||0;
+  const peakTx=await runTransaction(ref(db,"game"),cur=>{
+    cur=cur||{};
+    if(pointCps>num(cur.peakCps)){
+      cur.peakCps=pointCps;
+      cur.peakCpsAt=s;
+    }
+    peakAfter=num(cur.peakCps);
+    peakAtAfter=num(cur.peakCpsAt);
+    return cur;
   }).catch(()=>null);
-  if(peakTx?.committed)game.peakCps=peakAfter;
+  if(peakTx?.committed){
+    game.peakCps=peakAfter;
+    game.peakCpsAt=peakAtAfter;
+  }
   refreshCps();
   drawChart();
 }
 
+function chatOrderValue(m){
+  const stamp=num(m.serverAt||m.at);
+  return stamp>0?stamp:0;
+}
+
 function renderChat(){
-  const rows=Object.entries(chatMessages||{}).map(([key,data])=>({key,...(data||{})})).sort((a,b)=>num(a.at)-num(b.at)||String(a.key).localeCompare(String(b.key))).slice(-200);
-  el("chatList").innerHTML=rows.map(m=>`<div class="chat-row"><div class="chat-meta"><span class="chat-name">${escapeText(m.name||"Anonymous")}</span> · ${new Date(num(m.at)||now()).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</div><div class="chat-text">${escapeText(m.text||"")}</div></div>`).join("") || '<div class="sc-empty">No messages yet.</div>';
+  const rows=Object.entries(chatMessages||{}).map(([key,data])=>({key,...(data||{})}));
+  rows.sort((a,b)=>{
+    const ta=chatOrderValue(a),tb=chatOrderValue(b);
+    if(ta&&tb&&ta!==tb)return ta-tb;
+    if(ta&&!tb)return -1;
+    if(!ta&&tb)return 1;
+    return String(a.key).localeCompare(String(b.key));
+  });
+  const visible=rows.slice(-200);
+  el("chatList").innerHTML=visible.map(m=>{
+    const stamp=chatOrderValue(m)||now();
+    return `<div class="chat-row"><div class="chat-meta"><span class="chat-name">${escapeText(m.name||"Anonymous")}</span> · ${new Date(stamp).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</div><div class="chat-text">${escapeText(m.text||"")}</div></div>`;
+  }).join("") || '<div class="sc-empty">No messages yet.</div>';
   const list=el("chatList");
   list.scrollTop=list.scrollHeight;
 }
@@ -1329,7 +1459,7 @@ async function trimChat(){
     const rows=[];
     snap.forEach(child=>rows.push({key:child.key,data:child.val()}));
     if(rows.length<=200)return;
-    rows.sort((a,b)=>num(a.data?.at)-num(b.data?.at));
+    rows.sort((a,b)=>chatOrderValue(a.data)-chatOrderValue(b.data)||String(a.key).localeCompare(String(b.key)));
     const extra=rows.length-200;
     await Promise.all(rows.slice(0,extra).map(x=>remove(ref(db,`chat/${x.key}`))));
   }catch(err){
@@ -1343,7 +1473,7 @@ async function sendChat(){
   if(!text||!db)return;
   input.value="";
   try{
-    await push(ref(db,"chat"),{name,uid,text,at:now()});
+    await push(ref(db,"chat"),{name,uid,text,at:now(),serverAt:serverTimestamp()});
     await trimChat();
   }catch(err){
     console.error("[Clicklaborate Chat] send failed",{code:err?.code,message:err?.message,error:err});
@@ -1382,7 +1512,7 @@ function subscribe(){
   const secondsRef=query(ref(db,"seconds"),orderByChild("at"),limitToLast(60));
   onValue(secondsRef,s=>{
     const v=s.val()||{};
-    seconds=Object.entries(v).map(([second,x])=>({second,...(x||{})})).sort((a,b)=>num(a.second)-num(b.second));
+    seconds=Object.entries(v).map(([second,x])=>({second,...(x||{}),at:num(x?.at)||num(second)})).sort((a,b)=>num(a.second)-num(b.second));
     refreshCps();drawChart();
   },e=>fail("seconds",e));
 
@@ -1567,7 +1697,7 @@ async function start(){
     if(!stateSnap.exists()){
       const upgrades={};
       U.forEach(d=>upgrades[d[0]]=0);
-      await set(ref(db,"game"),{globalClicks:0,totalGenerated:0,rawClicks:0,peakCps:0,upgrades,lastTick:now()});
+      await set(ref(db,"game"),{globalClicks:0,totalGenerated:0,rawClicks:0,rawGenerated:0,supportClicks:0,peakCps:0,peakCpsAt:0,upgrades,lastTick:now()});
       console.info(tag,"created initial game state");
     }
     try{
