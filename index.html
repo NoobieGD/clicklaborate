@@ -240,7 +240,7 @@ button:disabled{cursor:not-allowed;opacity:.42}
 </style>
 </head>
 <body>
-<div class="version-label" aria-hidden="true">v1.5.2</div>
+<div class="version-label" aria-hidden="true">v1.5.3</div>
 <div id="joinModal" class="modal show">
   <div class="modal-card">
     <h2>Join Clicklaborate</h2>
@@ -382,6 +382,10 @@ button:disabled{cursor:not-allowed;opacity:.42}
               <div class="milestone-part-title">Total generated clicks</div>
               <div id="statsGeneratedMilestones" class="milestones"></div>
             </div>
+            <div class="milestone-part">
+              <div class="milestone-part-title">Raw clicks</div>
+              <div id="statsRawMilestones" class="milestones"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -426,7 +430,7 @@ button:disabled{cursor:not-allowed;opacity:.42}
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
 import {getDatabase,ref,onValue,set,update,push,get,runTransaction,onDisconnect,query,orderByChild,limitToLast,remove,onChildAdded,onChildChanged,onChildRemoved,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-database.js";
 import {getAuth,signInAnonymously} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
-import {initializeAppCheck,ReCaptchaV3Provider,getToken as getAppCheckToken} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app-check.js";
+import {initializeAppCheck,ReCaptchaEnterpriseProvider,getToken as getAppCheckToken} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app-check.js";
 
 const firebaseConfig={
   apiKey:"AIzaSyDUtuFa86asL1xGbTKvu9s-3CguRODFBvY",
@@ -444,8 +448,9 @@ const CLICK_PER_CURRENCY_UNIT=1000;
 const VOTE_SECONDS=30;
 const POLLER_LEASE_MS=14000;
 const GLOBAL_MILESTONES=[1,100,500,1000,5000,10000,25000,50000,100000,200000,500000,1000000,2000000,5000000,10000000];
+const RAW_MILESTONES=Array.from({length:34},(_,i)=>[1,2,5,10][i%4]*10**Math.floor(i/4)).filter(x=>x<=1e9);
 const GENERATED_MILESTONES=[1,2,5,10,20,50,100,200,500,1000,2000,5000,10000,20000,50000,100000,200000,500000,1000000,2000000,5000000,10000000,20000000,50000000,100000000,200000000,500000000,1000000000];
-const MILESTONES=[...new Set([...GLOBAL_MILESTONES,...GENERATED_MILESTONES])].sort((a,b)=>a-b);
+const MILESTONES=[...new Set([...GLOBAL_MILESTONES,...GENERATED_MILESTONES,...RAW_MILESTONES])].sort((a,b)=>a-b);
 const MILESTONE_USERS={
   1:"noobiegd",
   100:"Duckywys",
@@ -469,7 +474,7 @@ const U=[
   ["combo", "Combo Thing", "Keeps a small bonus going when people click a lot.", 595000, 3.0, "combo", 0.0072, "🔗"],
   ["offlineBank", "Old PC", "Keeps some passive progress while the room is empty.", 875000, 3.06, "offline", 0.6, "💻"],
   ["critHand", "Lucky One", "A few clicks randomly hit twice as hard.", 1260000, 3.1, "crit", 0.012, "🍀"],
-  ["groupPulse", "Group Stuff", "More people online means a slightly better global rate.", 1750000, 3.14, "group", 0.0084, "👥"],
+  ["groupPulse", "Group Stuff", "More people online means a slightly better global rate.", 2800000, 3.32, "group", 0.003, "👥"],
   ["rawBoost", "Click Buff", "Raw clicks get a small extra multiplier.", 2415000, 3.18, "rawBoost", 0.012, "📈"],
   ["doubleTap", "Double Click", "Sometimes one click turns into two.", 3255000, 3.22, "double", 0.0078, "2️⃣"],
   ["minuteHand", "Time Buff", "Longer sessions slowly improve passive output.", 4375000, 3.26, "time", 0.003, "⏱️"],
@@ -511,10 +516,13 @@ let seconds=[];
 let milestones={};
 let milestonesGlobal={};
 let milestonesGenerated={};
+let milestonesRaw={};
 let proposal=null;
 let proposalCooldownUntil=0;
 let superChats={};
 let chatMessages={};
+let chatCooldownUntil=Number(localStorage.getItem("clicklaborate_chat_cooldown")||0);
+let chatLastSentAt=Number(localStorage.getItem("clicklaborate_chat_last_sent")||0);
 let youtube={streamUrl:"",liveChatId:"",pageToken:"",pollerLease:0,lastPoll:0};
 let localClicks=[];
 let localContribution=[];
@@ -851,6 +859,8 @@ function renderMilestones(){
   const g=el("statsGlobalMilestones"),r=el("statsGeneratedMilestones");
   if(g)g.innerHTML=milestoneRows(milestonesGlobal,GLOBAL_MILESTONES);
   if(r)r.innerHTML=milestoneRows(milestonesGenerated,GENERATED_MILESTONES);
+  const raw=el("statsRawMilestones");
+  if(raw)raw.innerHTML=milestoneRows(milestonesRaw,RAW_MILESTONES);
 }
 
 function milestoneBonusCount(){
@@ -862,9 +872,17 @@ async function seedMilestones(){
   if(!db)return;
   const globalSeed={};
   const generatedSeed={};
+  const rawSeed={};
   for(const n of GLOBAL_MILESTONES){
     const who=MILESTONE_USERS[n];
     if(who)globalSeed[n]={name:who,uid:"",at:0,seeded:true};
+  }
+  const rawSeedNames=["Alex","Liam","Mar","Duckywys","clovis","ZoinkGMD","CALAMITY","Liam777","yuri is good","pixel","sam","max","jay","noah","kai","milo","nova","ben","leo","ryan","zane","matt","lucas"];
+  for(const n of RAW_MILESTONES){
+    if(n<=2000000){
+      const idx=Math.abs(Math.floor(Math.sin(n*12.9898)*43758.5453))%rawSeedNames.length;
+      rawSeed[n]={name:rawSeedNames[idx],uid:"",at:0,seeded:true};
+    }
   }
   for(const n of GENERATED_MILESTONES){
     const who=MILESTONE_USERS[n];
@@ -880,7 +898,16 @@ async function seedMilestones(){
       cur=cur||{};
       for(const [n,row] of Object.entries(generatedSeed))if(!cur[n])cur[n]=row;
       return cur;
-    }).catch(err=>console.error("[Clicklaborate Milestones] generated seed failed",{code:err?.code,message:err?.message,error:err}))
+    }).catch(err=>console.error("[Clicklaborate Milestones] generated seed failed",{code:err?.code,message:err?.message,error:err})),
+    runTransaction(ref(db,"milestones/raw"),cur=>{
+      cur=cur||{};
+      for(const [n,row] of Object.entries(cur)){
+        const milestone=Number(n);
+        if(milestone>2000000 && row?.seeded)delete cur[n];
+      }
+      for(const [n,row] of Object.entries(rawSeed))if(!cur[n])cur[n]=row;
+      return cur;
+    }).catch(err=>console.error("[Clicklaborate Milestones] raw seed failed",{code:err?.code,message:err?.message,error:err}))
   ]);
 }
 
@@ -1055,8 +1082,8 @@ function renderHome(){
   updateSmallNumber("topCps",currentCps);
 }
 
-async function awardMilestones(beforeGlobal,afterGlobal,beforeGenerated,afterGenerated){
-  const paths=[["global",beforeGlobal,afterGlobal,GLOBAL_MILESTONES],["generated",beforeGenerated,afterGenerated,GENERATED_MILESTONES]];
+async function awardMilestones(beforeGlobal,afterGlobal,beforeGenerated,afterGenerated,beforeRaw,afterRaw){
+  const paths=[["global",beforeGlobal,afterGlobal,GLOBAL_MILESTONES],["generated",beforeGenerated,afterGenerated,GENERATED_MILESTONES],["raw",beforeRaw,afterRaw,RAW_MILESTONES]];
   for(const [kind,before,after,list] of paths){
     for(const n of list){
       if(num(before)<n&&num(after)>=n){
@@ -1068,16 +1095,18 @@ async function awardMilestones(beforeGlobal,afterGlobal,beforeGenerated,afterGen
 
 async function generateClicks(amount,rawDelta=0){
   if(!db||!amount)return;
-  let beforeGlobal=0,afterGlobal=0,beforeGenerated=0,afterGenerated=0;
+  let beforeGlobal=0,afterGlobal=0,beforeGenerated=0,afterGenerated=0,beforeRaw=0,afterRaw=0;
   const tx=await runTransaction(ref(db,"game"),cur=>{
     cur=cur||{};
     beforeGlobal=num(cur.globalClicks);
     beforeGenerated=num(cur.totalGenerated);
+    beforeRaw=num(cur.rawClicks);
     afterGlobal=beforeGlobal+num(amount);
     afterGenerated=beforeGenerated+num(amount);
+    afterRaw=beforeRaw+num(rawDelta);
     cur.globalClicks=afterGlobal;
     cur.totalGenerated=afterGenerated;
-    cur.rawClicks=num(cur.rawClicks)+num(rawDelta);
+    cur.rawClicks=afterRaw;
     if(rawDelta>0)cur.rawGenerated=num(cur.rawGenerated)+num(amount);
     if(rawDelta>0){
       const active=(now()-num(cur.lastRawAt))<1000;
@@ -1087,7 +1116,7 @@ async function generateClicks(amount,rawDelta=0){
     return cur;
   });
   if(tx.committed){
-    await awardMilestones(beforeGlobal,afterGlobal,beforeGenerated,afterGenerated);
+    await awardMilestones(beforeGlobal,afterGlobal,beforeGenerated,afterGenerated,beforeRaw,afterRaw);
     const currentSecond=serverSec();
     await runTransaction(ref(db,`seconds/${currentSecond}`),v=>{
       v=v||{};
@@ -1163,6 +1192,9 @@ async function passiveTick(){
   const e=effectData();
   await runTransaction(ref(db,"game"),cur=>{
     cur=cur||{};
+    beforeGlobal=num(cur.globalClicks);
+    beforeGenerated=num(cur.totalGenerated);
+    beforeRaw=num(cur.rawClicks);
     const prev=num(cur.lastTick)||nowMs;
     const elapsed=Math.max(0,Math.min((nowMs-prev)/1000,3600));
     if(elapsed<1)return cur;
@@ -1180,13 +1212,14 @@ async function passiveTick(){
     gained=rate*elapsed;
     afterGlobal=beforeGlobal+gained;
     afterGenerated=beforeGenerated+gained;
+    afterRaw=beforeRaw;
     cur.globalClicks=afterGlobal;
     cur.totalGenerated=afterGenerated;
     cur.lastTick=nowMs;
     return cur;
   });
   if(gained>0){
-    await awardMilestones(beforeGlobal,afterGlobal,beforeGenerated,afterGenerated);
+    await awardMilestones(beforeGlobal,afterGlobal,beforeGenerated,afterGenerated,beforeRaw,afterRaw);
     const passiveSecond=serverSec();
     await runTransaction(ref(db,`seconds/${passiveSecond}`),v=>{
       v=v||{};
@@ -1258,29 +1291,45 @@ async function castVote(choice){
   }
 }
 
+let finishingProposal=false;
 async function finishProposal(){
+  if(finishingProposal)return;
   const current=proposal;
   if(!current?.active||num(current.endsAt)>now())return;
+  finishingProposal=true;
   const pRef=ref(db,"proposal/current");
   try{
     const serverNowSnap=await get(ref(db,".info/serverTimeOffset"));
-    const sharedNow=Date.now()+num(serverNowSnap.val());
+    const offset=num(serverNowSnap.val());
+    const sharedNow=Date.now()+offset;
     if(sharedNow<num(current.endsAt))return;
-    const decision=await runTransaction(pRef,cur=>{
+    const claim=await runTransaction(pRef,cur=>{
       if(!cur?.active||cur.id!==current.id||cur.cancelable===true)return cur;
-      const nowValue=Date.now()+num(serverNowSnap.val());
-      if(nowValue<num(cur.endsAt))return cur;
+      const t=Date.now()+offset;
+      if(t<num(cur.endsAt))return cur;
+      if(cur.finishingBy&&num(cur.finishingUntil)>t&&cur.finishingBy!==uid)return cur;
+      return {...cur,finishingBy:uid,finishingUntil:t+10000};
+    });
+    if(!claim.committed)return;
+    const claimed=claim.snapshot?.val?.();
+    if(!claimed||claimed.finishingBy!==uid)return;
+    const decision=await runTransaction(pRef,cur=>{
+      if(!cur?.active||cur.id!==current.id||cur.finishingBy!==uid)return cur;
+      const t=Date.now()+offset;
+      if(t<num(cur.endsAt))return cur;
       const yes=num(cur.yes),no=num(cur.no);
       const passed=yes>no;
-      return {...cur,active:false,locked:true,cancelable:false,resolved:true,passed,tie:yes===no,resolvedAt:nowValue,cooldownUntil:nowValue+60000};
+      return {...cur,active:false,locked:true,cancelable:false,resolved:true,passed,tie:yes===no,resolvedAt:t,cooldownUntil:t+60000,finishingBy:null,finishingUntil:null};
     });
     if(!decision.committed)return;
-    const decided=decision.snapshot?.val();
+    const decided=decision.snapshot?.val?.();
     if(!decided)return;
-    if(decided.startedByUid){
+    const proposerUid=typeof decided.startedByUid==="string"&&/^[A-Za-z0-9_-]+$/.test(decided.startedByUid)?decided.startedByUid:null;
+    if(proposerUid){
       const until=num(decided.cooldownUntil)||sharedNow+60000;
-      await update(ref(db,`proposal/cooldowns/${decided.startedByUid}`),{until}).catch(err=>console.error("[Clicklaborate Vote] cooldown write failed",{code:err?.code,message:err?.message,error:err}));
-      if(decided.startedByUid===uid)proposalCooldownUntil=Math.max(proposalCooldownUntil,until);
+      try{await update(ref(db,`proposal/cooldowns/${proposerUid}`),{until})}
+      catch(err){console.error("[Clicklaborate Vote] cooldown write failed",{code:err?.code,message:err?.message,uid:proposerUid,error:err})}
+      if(proposerUid===uid)proposalCooldownUntil=Math.max(proposalCooldownUntil,until);
     }
     if(!decided.passed){
       proposal=null;
@@ -1431,15 +1480,18 @@ async function recordSuperChat(row){
         cur=cur||{};
         beforeGlobal=num(cur.globalClicks);
         beforeGenerated=num(cur.totalGenerated);
+        beforeRaw=num(cur.rawClicks);
+        beforeGenerated=num(cur.totalGenerated);
         afterGlobal=beforeGlobal+clicks;
         afterGenerated=beforeGenerated+clicks;
+        afterRaw=beforeRaw;
         cur.globalClicks=afterGlobal;
         cur.totalGenerated=afterGenerated;
         cur.supportClicks=num(cur.supportClicks)+clicks;
         return cur;
       });
       if(addTx.committed){
-        await awardMilestones(beforeGlobal,afterGlobal,beforeGenerated,afterGenerated);
+        await awardMilestones(beforeGlobal,afterGlobal,beforeGenerated,afterGenerated,beforeRaw,afterRaw);
         const supportSecond=serverSec();
         await runTransaction(ref(db,`seconds/${supportSecond}`),v=>{
           v=v||{};
@@ -1561,9 +1613,27 @@ async function sendChat(){
   const input=el("chatInput");
   const text=String(input.value||"").trim();
   if(!text||!db)return;
+  const t=now();
+  const remaining=Math.max(0,chatCooldownUntil-t);
+  if(remaining>0){toast(`Chat locked for ${Math.ceil(remaining/1000)}s.`);return}
+  if(text.length>300){
+    chatCooldownUntil=t+30000;
+    localStorage.setItem("clicklaborate_chat_cooldown",String(chatCooldownUntil));
+    input.value="";
+    toast("Chat locked for 30s: message was too long.");
+    return;
+  }
+  if(chatLastSentAt&&t-chatLastSentAt<1500){
+    chatCooldownUntil=t+30000;
+    localStorage.setItem("clicklaborate_chat_cooldown",String(chatCooldownUntil));
+    toast("Chat locked for 30s: you're sending too quickly.");
+    return;
+  }
   input.value="";
   try{
-    await push(ref(db,"chat"),{name,uid,text,at:now(),serverAt:serverTimestamp()});
+    await push(ref(db,"chat"),{name,uid,text,at:t,serverAt:serverTimestamp()});
+    chatLastSentAt=t;
+    localStorage.setItem("clicklaborate_chat_last_sent",String(t));
     await trimChat();
   }catch(err){
     console.error("[Clicklaborate Chat] send failed",{code:err?.code,message:err?.message,error:err});
@@ -1608,6 +1678,7 @@ function subscribe(){
 
   onValue(ref(db,"milestones/global"),s=>{milestonesGlobal=s.val()||{};renderMilestones()},e=>fail("milestones/global",e));
   onValue(ref(db,"milestones/generated"),s=>{milestonesGenerated=s.val()||{};renderMilestones()},e=>fail("milestones/generated",e));
+  onValue(ref(db,"milestones/raw"),s=>{milestonesRaw=s.val()||{};renderMilestones()},e=>fail("milestones/raw",e));
   onValue(ref(db,"proposal/current"),s=>{proposal=s.val();renderProposal()},e=>fail("proposal/current",e));
 
   const scRef=query(ref(db,"superChats/events"),orderByChild("at"),limitToLast(12));
@@ -1630,7 +1701,7 @@ function subscribe(){
   setInterval(()=>{renderHome();renderStats();renderSuperChats();drawChart()},1000);
   setInterval(()=>updateSmallNumber("homeCombo",currentCombo()),100);
   setInterval(passiveTick,2000);
-  setInterval(()=>{renderProposal();renderUpgrades();finishProposal()},1000);
+  setInterval(()=>{renderProposal();renderUpgrades();if(!finishingProposal)finishProposal()},1000);
 }
 
 function animationTick(){
@@ -1734,7 +1805,7 @@ async function start(){
     const app=initializeApp(firebaseConfig);
     let appCheck=null;
     try{
-      appCheck=initializeAppCheck(app,{provider:new ReCaptchaV3Provider(APP_CHECK_KEY),isTokenAutoRefreshEnabled:true});
+      appCheck=initializeAppCheck(app,{provider:new ReCaptchaEnterpriseProvider(APP_CHECK_KEY),isTokenAutoRefreshEnabled:true});
       console.info(tag,"App Check initialized",{provider:"reCAPTCHA v3"});
       try{
         const tokenResult=await getAppCheckToken(appCheck,true);
