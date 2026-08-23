@@ -578,6 +578,7 @@ let localContribution=[];
 let queuedRaw=0;
 let flushBusy=false;
 let flushTimer=0;
+let clickRetryDelay=1000;
 let rendered={};
 let lastFrame=performance.now();
 let visualCounter=0;
@@ -591,45 +592,39 @@ let fxRates={EUR:1};
 let fxLoadedAt=0;
 let appCheckReady=false;
 
-const APP_VERSION="1.7";
-const GITHUB_COMMITS_URL="https://api.github.com/repos/NoobieGD/clicklaborate/commits/main";
+const APP_VERSION="pre-1.7-fix2";
+const GITHUB_RAW_INDEX_URL="https://raw.githubusercontent.com/NoobieGD/clicklaborate/main/index.html";
 let repoLocked=false;
 let repoCheckInFlight=null;
-function lockForRepoMismatch(remoteCommitName){
+function lockForRepoMismatch(remoteVersion){
   repoLocked=true;
   const shell=document.querySelector(".app");
   if(shell){shell.style.pointerEvents="none";shell.style.filter="blur(1px)"}
   const modal=el("repoLock");
   if(modal){modal.classList.add("show");modal.setAttribute("aria-hidden","false")}
   const text=el("repoLockText");
-  if(text)text.textContent=`GitHub's latest commit is "${remoteCommitName}", but this page is ${APP_VERSION}. Refresh to load the current build.`;
+  if(text)text.textContent=`This build is outdated. The repository is ${remoteVersion}, but this page is ${APP_VERSION}. Refresh to load the current build.`;
   const build=el("repoLockBuild");
-  if(build)build.textContent=`Local: ${APP_VERSION} · Latest commit: ${remoteCommitName}`;
+  if(build)build.textContent=`Local: ${APP_VERSION} · Repository: ${remoteVersion}`;
 }
 async function verifyRepoVersion(force=false){
   if(repoLocked)return false;
   if(repoCheckInFlight&&!force)return repoCheckInFlight;
   repoCheckInFlight=(async()=>{
     try{
-      const r=await fetch(`${GITHUB_COMMITS_URL}?_cb=${Date.now()}`,{
-        cache:"no-store",
-        headers:{Accept:"application/vnd.github+json"}
-      });
-      if(!r.ok)throw new Error(`GitHub ${r.status}`);
-      const data=await r.json();
-      const remoteCommitName=String(data?.commit?.message||"").split(/\r?\n/,1)[0].trim();
-      if(!remoteCommitName)throw new Error("latest commit name not found");
-      const normalizedRemote=remoteCommitName.replace(/^v/i,"").trim();
-      const normalizedLocal=APP_VERSION.replace(/^v/i,"").trim();
-      if(normalizedRemote!==normalizedLocal){
-        console.warn("[Clicklaborate Build] stale build",{local:APP_VERSION,remoteCommitName});
-        lockForRepoMismatch(remoteCommitName);
-        return false;
-      }
+      const r=await fetch(`${GITHUB_RAW_INDEX_URL}?_cb=${Date.now()}`,{cache:"no-store"});
+      if(!r.ok)throw new Error(`GitHub raw ${r.status}`);
+      const source=await r.text();
+      const m=source.match(/const\s+APP_VERSION\s*=\s*["']([^"']+)["']/);
+      if(!m||!m[1])throw new Error("Repository version marker not found");
+      const remoteVersion=String(m[1]).replace(/^v/i,"").trim();
+      const localVersion=APP_VERSION.replace(/^v/i,"").trim();
+      if(remoteVersion!==localVersion){lockForRepoMismatch(remoteVersion);return false;}
       return true;
     }catch(err){
-      console.warn("[Clicklaborate Build] commit check failed; allowing build",{message:err?.message,error:err});
-      return true;
+      console.error("[Clicklaborate Build] repository check failed",err);
+      lockForRepoMismatch("unavailable");
+      return false;
     }finally{repoCheckInFlight=null}
   })();
   return repoCheckInFlight;
@@ -1220,26 +1215,31 @@ function queueClick(){
   localClicksTotal++;
   localStorage.setItem("clicklaborate_raw",String(localClicksTotal));
   renderHome();
-  if(!flushTimer)flushTimer=setTimeout(()=>{flushTimer=0;flushClicks()},60);
-}
-
-async function flushClicks(){
-  if(flushBusy||queuedRaw<=0||!auth?.currentUser)return;
+  if(!flushTimer)flushTimer=setTimeout(()=>{flushTimerasync function flushClicks(){
+  if(flushBusy||queuedRaw<=0||!(auth&&auth.currentUser))return;
   flushBusy=true;
-  const raw=queuedRaw; queuedRaw=0;
+  const raw=queuedRaw;
+  queuedRaw=0;
   try{
     const result=await generateClicks(raw);
-    if(result?.game){Object.assign(game,result.game);rollTarget=num(game.globalClicks);}
-    if(result?.rawClicks!=null)localClicksTotal=num(result.rawClicks);
-    localContribution.push({at:now(),amount:num(result?.generated??raw)});
+    if(result&&result.generated!=null){
+      localContribution.push({at:now(),amount:num(result.generated)});
+    }
+    // Do not overwrite the local game snapshot from the function response.
+    // The authoritative /game listener is the single source of truth for every client.
     renderHome();
+    clickRetryDelay=1000;
   }catch(err){
     queuedRaw+=raw;
-    console.error("[Clicklaborate API] click failed",{code:err?.code,status:err?.status,message:err?.message,error:err});
-    toast(err?.status===429?"You're clicking too quickly.":"Click failed. Try again.");
+    console.error("[Clicklaborate API] click failed",{code:err&&err.code,status:err&&err.status,message:err&&err.message,error:err});
+    if(err&&err.status===429){toast("You're clicking too quickly.");}
+    else toast("Click failed. Retrying shortly.");
+    setTimeout(()=>{if(queuedRaw>0)flushClicks();},clickRetryDelay);
+    clickRetryDelay=Math.min(clickRetryDelay*2,30000);
   }finally{
     flushBusy=false;
-    if(queuedRaw>0&&!flushTimer)flushTimer=setTimeout(()=>{flushTimer=0;flushClicks()},100);
+  }
+}flushClicks()},100);
   }
 }
 
@@ -1370,7 +1370,7 @@ function subscribe(){
   onValue(chatRef,s=>{chatMessages=s.val()||{};renderChat()},e=>fail("chat",e));
   onValue(ref(db,"youtube/source"),s=>{youtube={...youtube,...(s.val()||{})}},e=>fail("youtube/source",e));
 
-  setInterval(()=>{if(queuedRaw>0)flushClicks()},250);
+  setInterval(()=>{if(queuedRaw>0&&!flushBusy)flushClicks()},1000);
   setInterval(()=>{renderHome();renderStats();renderSuperChats();drawChart()},1000);
   setInterval(()=>updateSmallNumber("homeCombo",currentCombo()),100);
     setInterval(()=>{renderProposal();renderUpgrades()},1000);
@@ -1502,7 +1502,7 @@ async function start(){
       console.error(tag,"App Check initialization failed",appCheckInitErr);
       toast("Firebase App Check failed. See console.");
     }
-   functions=getFunctions(app,"europe-west1");
+    functions=getFunctions(app,"europe-west1");
     fnClick=httpsCallable(functions,"click");
     fnPropose=httpsCallable(functions,"proposeUpgrade");
     fnVote=httpsCallable(functions,"vote");
