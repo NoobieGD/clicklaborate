@@ -108,7 +108,7 @@ button:disabled{cursor:not-allowed;opacity:.42}
 }
 .click:hover{filter:brightness(1.04)}
 .click:active{transform:scale(.985)}
-.rate-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:12px}
+.rate-row{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-top:12px}
 .rate{border:1px solid var(--line);background:#0c0c0c;border-radius:13px;padding:11px 12px;text-align:center;min-width:0}
 .rate-v{font-family:"Roboto",Arial,sans-serif;font-weight:850;font-size:1.05rem;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rate-l{margin-top:3px;color:var(--muted);font-size:.69rem}
@@ -213,6 +213,7 @@ button:disabled{cursor:not-allowed;opacity:.42}
   .topbar:before{content:"";display:block}
   .menu-mobile{display:inline-flex!important}
   .rate-row{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .rate-row .rate:last-child{grid-column:span 2}
 }
 @media(max-width:560px){
   .top-actions{display:none}
@@ -320,6 +321,7 @@ button:disabled{cursor:not-allowed;opacity:.42}
           <div class="rate"><div id="globalCps" class="rate-v">0</div><div class="rate-l">Clicks / second</div></div>
           <div class="rate"><div id="globalMinute" class="rate-v">0</div><div class="rate-l">Clicks / minute</div></div>
           <div class="rate"><div id="yourCps" class="rate-v">0</div><div class="rate-l">Your CPS</div></div>
+          <div class="rate"><div id="yourMinute" class="rate-v">0</div><div class="rate-l">Your clicks / min</div></div>
           <div class="rate"><div id="homeCombo" class="rate-v">0</div><div class="rate-l">Combo</div></div>
         </div>
 
@@ -592,7 +594,7 @@ let fxRates={EUR:1};
 let fxLoadedAt=0;
 let appCheckReady=false;
 
-const APP_VERSION="pre-1.7-fix3";
+const APP_VERSION="1.7";
 const GITHUB_RAW_INDEX_URL="https://raw.githubusercontent.com/NoobieGD/clicklaborate/main/index.html";
 let repoLocked=false;
 let repoCheckInFlight=null;
@@ -901,8 +903,20 @@ function secondMap(){
   return map;
 }
 
-function latestSeconds(){
+// Anchor "now" to the newest second the server has actually reported, rather than
+// the local device clock. Local clock skew (even a couple seconds) used to make
+// deriveCps() look up a bucket that was never written, silently showing 0.
+function latestKnownSecond(){
+  if(!seconds.length)return serverSec();
+  const newest=num(seconds[seconds.length-1].second);
   const t=serverSec();
+  // If our clock is roughly in sync, prefer the real current second so the very
+  // latest tick isn't skipped; otherwise fall back to whatever the server last sent.
+  return Math.abs(t-newest)<=2?t:newest;
+}
+
+function latestSeconds(){
+  const t=latestKnownSecond();
   const map=secondMap();
   const out=[];
   for(let i=59;i>=0;i--){
@@ -913,7 +927,7 @@ function latestSeconds(){
 }
 
 function recentCpsSeconds(){
-  const t=serverSec();
+  const t=latestKnownSecond();
   const map=secondMap();
   const out=[];
   for(let i=4;i>=0;i--){
@@ -924,8 +938,15 @@ function recentCpsSeconds(){
 }
 
 function deriveCps(){
-  const t=serverSec();
-  return num(secondMap().get(t));
+  const map=secondMap();
+  const t=latestKnownSecond();
+  // Try the current second first, then step back a little in case the server
+  // hasn't flushed this exact tick yet, so the reading doesn't flicker to 0.
+  for(let i=0;i<=2;i++){
+    const v=map.get(t-i);
+    if(v!=null)return num(v);
+  }
+  return 0;
 }
 
 function deriveMinute(){
@@ -964,10 +985,21 @@ function euroValue(amount,currency){
   return rate>0?num(amount)/rate:num(amount);
 }
 
+function pruneLocalContribution(){
+  const t=now();
+  // Keep a full minute of history so both the CPS and clicks/min readouts can
+  // be derived from the same buffer without stomping on each other's window.
+  localContribution=localContribution.filter(x=>t-x.at<60000);
+  return localContribution;
+}
+
 function localContributionCps(){
   const t=now();
-  localContribution=localContribution.filter(x=>t-x.at<1000);
-  return localContribution.reduce((sum,x)=>sum+num(x.amount),0);
+  return pruneLocalContribution().filter(x=>t-x.at<1000).reduce((sum,x)=>sum+num(x.amount),0);
+}
+
+function localContributionMinute(){
+  return pruneLocalContribution().reduce((sum,x)=>sum+num(x.amount),0);
 }
 
 function pruneLocalClicks(){
@@ -978,6 +1010,10 @@ function pruneLocalClicks(){
 
 function localCps(){
   return localContributionCps();
+}
+
+function localMinute(){
+  return localContributionMinute();
 }
 
 
@@ -1039,7 +1075,7 @@ function renderUpgrades(){
   const html=U.map(d=>{
     const level=num(game.upgrades?.[d[0]]);
     const cost=upgradeCost(d[0],level);
-    const can=!proposal?.active && num(game.globalClicks)>=cost && activeUsers()>=3;
+    const can=!proposalIsLive(proposal) && num(game.globalClicks)>=cost && activeUsers()>=3;
     return `<div class="upgrade">
       <div class="up-top"><div class="up-name">${d[7]} ${escapeText(d[1])}</div><div class="up-level">Lv ${level}</div></div>
       <div class="up-desc">${escapeText(d[2])}</div>
@@ -1067,7 +1103,15 @@ function proposalCanonicalCost(p){
 
 function renderProposal(){
   const box=el("proposal");
-  if(!proposal?.active){box.classList.remove("show");return}
+  const live=proposalIsLive(proposal);
+  if(!live){
+    // Hide immediately once the timer runs out, even if the server hasn't
+    // gotten around to flipping `active` to false yet, so stale votes don't
+    // linger on screen forever.
+    box.classList.remove("show");
+    if(proposal&&proposal.endsAt&&num(proposal.endsAt)<=now())proposal=null;
+    return;
+  }
   box.classList.add("show");
   const d=U.find(x=>x[0]===proposal.upgradeId);
   const yes=num(proposal.yes),no=num(proposal.no),total=yes+no;
@@ -1084,8 +1128,8 @@ function renderProposal(){
   const voted=!!proposal.voters?.[voteKey];
   const voteText=proposalStateText(proposal);
   el("voteInfo").textContent=voted?`You voted ${proposal.voters[voteKey]}. ${voteText}`:`Voting open · ${voteText}`;
-  el("voteYes").disabled=voted;
-  el("voteNo").disabled=voted;
+  el("voteYes").disabled=voted||voteInFlight;
+  el("voteNo").disabled=voted||voteInFlight;
 }
 
 function superColor(tier,type){
@@ -1095,13 +1139,13 @@ function superColor(tier,type){
 }
 
 function renderSuperChats(){
+  // Note: statScRevenue/statScCount are driven solely by the "superChats/summary"
+  // listener in subscribe(), which holds the authoritative running totals. This
+  // function only renders the recent-events feed (limited to the last 12 by the
+  // query) — it used to also overwrite those same totals with just the sum of
+  // that capped window, which raced with the summary listener and made the
+  // displayed revenue/count randomly snap to the wrong (too low) number.
   const rows=Object.values(superChats||{}).sort((a,b)=>num(b.at)-num(a.at)).slice(0,12);
-  const revenueEur=Object.values(superChats||{}).reduce((a,r)=>a+num(r.amountEur),0);
-  const revenue=`€${revenueEur.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
-  const statRevenue=el("statScRevenue");
-  const statCount=el("statScCount");
-  if(statRevenue)statRevenue.textContent=revenue;
-  if(statCount)statCount.textContent=fmt(Object.keys(superChats||{}).length);
   const list=rows.map(r=>{
     const bg=superColor(r.tier,r.type);
     let message=r.message||"";
@@ -1195,6 +1239,7 @@ function renderHome(){
   updateSmallNumber("globalCps",currentCps);
   updateSmallNumber("globalMinute",deriveMinute());
   updateSmallNumber("yourCps",localCps());
+  updateSmallNumber("yourMinute",localMinute());
   updateSmallNumber("sideCps",localCps());
   updateSmallNumber("homeCombo",currentCombo());
   updateSmallNumber("topCps",currentCps);
@@ -1209,13 +1254,19 @@ async function generateClicks(rawDelta=0){
   return apiRequest("/api/click",{rawClicks:Math.max(1,Math.floor(num(rawDelta)))});
 }
 
+// A 60ms debounce meant every fast click burst turned into a flood of separate
+// backend calls, which is exactly what was tripping the server's per-user rate
+// limit and getting individual clicks rejected. Coalescing into a wider window
+// means far fewer, larger requests for the same amount of clicking.
+const CLICK_FLUSH_MS=220;
+
 function queueClick(){
   queuedRaw++;
   localClicks.push(now());
   localClicksTotal++;
   localStorage.setItem("clicklaborate_raw",String(localClicksTotal));
   renderHome();
-  if(!flushTimer)flushTimer=setTimeout(()=>{flushTimer=0;flushClicks()},60);
+  if(!flushTimer)flushTimer=setTimeout(()=>{flushTimer=0;flushClicks()},CLICK_FLUSH_MS);
 }
 
 async function flushClicks(){
@@ -1235,9 +1286,12 @@ async function flushClicks(){
     queuedRaw+=raw;
     console.error("[Clicklaborate API] click failed",{code:err&&err.code,status:err&&err.status,message:err&&err.message,error:err});
     if(err&&err.status===429){
-      toast("You're clicking too quickly.");
+      toast("You're clicking too quickly — catching up in a moment.");
     }
-    setTimeout(()=>{if(queuedRaw>0)flushClicks();},clickRetryDelay);
+    // Jitter avoids every retry landing on the exact same tick as everyone
+    // else who got rate-limited at the same moment.
+    const jitter=Math.floor(Math.random()*250);
+    setTimeout(()=>{if(queuedRaw>0)flushClicks();},clickRetryDelay+jitter);
     clickRetryDelay=Math.min(clickRetryDelay*2,30000);
   }finally{
     flushBusy=false;
@@ -1252,15 +1306,44 @@ function firebaseSafeKey(value){
 async function proposeUpgrade(id){
   if(!U.find(x=>x[0]===id))return;
   if(activeUsers()<3){toast("At least 3 people need to be online.");return;}
-  if(proposal?.active){toast("There is already a vote running.");return;}
+  if(proposalIsLive(proposal)){toast("There is already a vote running.");return;}
   try{const r=await apiRequest("/api/proposals",{upgradeId:id});if(r?.proposal){proposal=r.proposal;renderProposal();toast("Vote opened.");}}
   catch(err){console.error("[Clicklaborate API] proposal failed",err);toast(err?.message||"Could not start vote.");}
 }
 
+function proposalIsLive(p){
+  // Some server payloads omit an explicit `active:true` flag once the proposal
+  // object exists, which used to make the strict `!proposal?.active` check
+  // block every vote. A proposal is live if it exists, wasn't explicitly closed,
+  // and its timer hasn't run out yet.
+  if(!p)return false;
+  if(p.active===false)return false;
+  if(p.endsAt&&num(p.endsAt)<=now())return false;
+  return true;
+}
+
+let voteInFlight=false;
 async function castVote(choice){
-  if(!["yes","no"].includes(choice)||!proposal?.active)return;
-  try{const r=await apiRequest("/api/vote",{choice});if(r?.proposal){proposal=r.proposal;renderProposal();}}
-  catch(err){console.error("[Clicklaborate API] vote failed",err);toast(err?.message||"Vote failed.");}
+  if(voteInFlight)return;
+  if(!["yes","no"].includes(choice)||!proposalIsLive(proposal)){
+    if(proposal&&!proposalIsLive(proposal))toast("That vote has ended.");
+    return;
+  }
+  voteInFlight=true;
+  el("voteYes").disabled=true;
+  el("voteNo").disabled=true;
+  try{
+    const payload={choice,upgradeId:proposal.upgradeId,proposalId:proposal.id||proposal.key||proposal.upgradeId,endsAt:proposal.endsAt};
+    const r=await apiRequest("/api/vote",payload);
+    if(r?.proposal)proposal=r.proposal;
+    renderProposal();
+  }catch(err){
+    console.error("[Clicklaborate API] vote failed",err);
+    toast(err?.message||"Vote failed.");
+    renderProposal();
+  }finally{
+    voteInFlight=false;
+  }
 }
 
 let finishingProposal=false;
@@ -1320,6 +1403,14 @@ function subscribe(){
     console.error("[Clicklaborate Firebase] listener failed",{path,code:err?.code,message:err?.message,error:err});
     toast(`Firebase read failed: ${err?.code||"unknown error"}`);
   };
+
+  // Keep serverSec()/serverNow() aligned with Firebase's clock instead of the
+  // device clock. Without this, any client whose clock drifted from the server
+  // would look up CPS "second" buckets that were never written, so global/local
+  // CPS and clicks/min would silently sit at 0.
+  onValue(ref(db,".info/serverTimeOffset"),s=>{
+    serverTimeOffset=num(s.val());
+  },e=>fail(".info/serverTimeOffset",e));
 
   onValue(ref(db,"game"),s=>{
     const incoming=s.val();
