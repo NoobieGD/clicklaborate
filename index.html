@@ -600,6 +600,39 @@ const APP_VERSION="1.7.3";
 const GITHUB_RAW_INDEX_URL="https://raw.githubusercontent.com/NoobieGD/clicklaborate/main/index.html";
 let repoLocked=false;
 let repoCheckInFlight=null;
+
+/*
+  Only treat the page as outdated when GitHub explicitly reports a NEWER
+  version than the version this page was built with.
+
+  This is intentionally not an equality check. GitHub/raw can temporarily
+  return an older/cached build while the repository is catching up, and that
+  must never make a newer local build look outdated.
+*/
+function compareVersions(a,b){
+  const parse=v=>String(v||"")
+    .replace(/^v/i,"")
+    .trim()
+    .split(/[.-]/)
+    .map(part=>{
+      const n=Number(part);
+      return Number.isFinite(n)?n:0;
+    });
+
+  const av=parse(a);
+  const bv=parse(b);
+  const length=Math.max(av.length,bv.length);
+
+  for(let i=0;i<length;i++){
+    const x=av[i]??0;
+    const y=bv[i]??0;
+    if(x>y)return 1;
+    if(x<y)return -1;
+  }
+
+  return 0;
+}
+
 function lockForRepoMismatch(remoteVersion){
   repoLocked=true;
   const shell=document.querySelector(".app");
@@ -611,26 +644,50 @@ function lockForRepoMismatch(remoteVersion){
   const build=el("repoLockBuild");
   if(build)build.textContent=`Local: ${APP_VERSION} · Repository: ${remoteVersion}`;
 }
+
 async function verifyRepoVersion(force=false){
   if(repoLocked)return false;
   if(repoCheckInFlight&&!force)return repoCheckInFlight;
+
   repoCheckInFlight=(async()=>{
     try{
       const r=await fetch(`${GITHUB_RAW_INDEX_URL}?_cb=${Date.now()}`,{cache:"no-store"});
       if(!r.ok)throw new Error(`GitHub raw ${r.status}`);
+
       const source=await r.text();
       const m=source.match(/const\s+APP_VERSION\s*=\s*["']([^"']+)["']/);
       if(!m||!m[1])throw new Error("Repository version marker not found");
+
       const remoteVersion=String(m[1]).replace(/^v/i,"").trim();
       const localVersion=APP_VERSION.replace(/^v/i,"").trim();
-      if(remoteVersion!==localVersion){lockForRepoMismatch(remoteVersion);return false;}
+
+      /*
+        IMPORTANT:
+        - remote > local  => the repository has a newer posted version, so
+          show the outdated-build popup.
+        - remote === local => current build, do nothing.
+        - remote < local  => GitHub/raw is behind this page, so do nothing.
+          This prevents cases such as local 1.7.3 being incorrectly flagged
+          because the website temporarily reports 1.7.1.
+      */
+      if(compareVersions(remoteVersion,localVersion)>0){
+        lockForRepoMismatch(remoteVersion);
+        return false;
+      }
+
       return true;
     }catch(err){
+      /*
+        A failed/unavailable repository check does NOT prove that this build
+        is outdated. Leave the page usable rather than showing a false popup.
+      */
       console.error("[Clicklaborate Build] repository check failed",err);
-      lockForRepoMismatch("unavailable");
-      return false;
-    }finally{repoCheckInFlight=null}
+      return true;
+    }finally{
+      repoCheckInFlight=null;
+    }
   })();
+
   return repoCheckInFlight;
 }
 const el=id=>document.getElementById(id);
@@ -904,6 +961,15 @@ function updateSmallNumber(id,value){
   node.textContent=text;
 }
 
+function updateRateNumber(id,value){
+  const node=el(id);
+  const n=Math.max(0,num(value));
+  const text=n<10?n.toFixed(2):n.toLocaleString("en-US",{maximumFractionDigits:2});
+  if(rendered[id]===text)return;
+  rendered[id]=text;
+  node.textContent=text;
+}
+
 function secondMap(){
   const map=new Map();
   for(const x of seconds)map.set(num(x.second),num(x.cps));
@@ -944,20 +1010,77 @@ function recentCpsSeconds(){
   return out;
 }
 
-function deriveCps(){
+// Fallback readers of the /seconds aggregation node — kept for the chart and
+// for the brief window before we've collected enough local samples below.
+function deriveCpsFromSecondsNode(){
   const map=secondMap();
   const t=latestKnownSecond();
-  // Try the current second first, then step back a little in case the server
-  // hasn't flushed this exact tick yet, so the reading doesn't flicker to 0.
   for(let i=0;i<=2;i++){
     const v=map.get(t-i);
     if(v!=null)return num(v);
   }
   return 0;
 }
+function deriveMinuteFromSecondsNode(){
+  return latestSeconds().reduce((a,x)=>a+num(x.cps),0);
+}
+
+// The /seconds node has tens of thousands of entries and is queried with
+// orderByChild("at") + limitToLast(60). Without a matching database index that
+// query gets slow/stale under load and can effectively stop delivering fresh
+// updates — which is exactly why Clicks/second and Clicks/minute were stuck on
+// a fixed number instead of tracking real activity. Rather than depend on that
+// node at all for these two readouts, we sample the single lightweight `game`
+// node (which we know updates live — it's what animates the main counter) on
+// a fast timer and compute the rate ourselves from real elapsed wall-clock time.
+let globalClickSamples=[]; // {at, total}
+function recordGlobalSample(){
+  const total=num(game.globalClicks);
+  const t=now();
+  globalClickSamples.push({at:t,total});
+  const cutoff=t-65000;
+  while(globalClickSamples.length>2&&globalClickSamples[0].at<cutoff)globalClickSamples.shift();
+}
+
+function globalSampleAtOrBefore(targetAt){
+  if(!globalClickSamples.length)return null;
+  for(let i=globalClickSamples.length-1;i>=0;i--){
+    if(globalClickSamples[i].at<=targetAt)return globalClickSamples[i];
+  }
+  return globalClickSamples[0];
+}
+
+function globalDeltaOverWindow(windowMs){
+  if(globalClickSamples.length<2)return null;
+  const newest=globalClickSamples[globalClickSamples.length-1];
+  const targetAt=newest.at-windowMs;
+  const base=globalSampleAtOrBefore(targetAt);
+  if(!base)return null;
+  const elapsed=(newest.at-base.at)/1000;
+  if(elapsed<=0)return null;
+  return Math.max(0,newest.total-base.total);
+}
+
+function deriveCps(){
+  if(globalClickSamples.length<2)return deriveCpsFromSecondsNode();
+  const newest=globalClickSamples[globalClickSamples.length-1];
+  const targetAt=newest.at-1000;
+  const base=globalSampleAtOrBefore(targetAt) || globalClickSamples[0];
+  const elapsed=(newest.at-base.at)/1000;
+  if(elapsed<=0)return deriveCpsFromSecondsNode();
+  return Math.max(0,newest.total-base.total)/elapsed;
+}
 
 function deriveMinute(){
-  return latestSeconds().reduce((a,x)=>a+num(x.cps),0);
+  if(globalClickSamples.length<2)return deriveMinuteFromSecondsNode();
+  const newest=globalClickSamples[globalClickSamples.length-1];
+  const targetAt=newest.at-60000;
+  const base=globalSampleAtOrBefore(targetAt);
+  if(base)return Math.max(0,newest.total-base.total);
+  const first=globalClickSamples[0];
+  const elapsed=(newest.at-first.at)/1000;
+  if(elapsed<=0)return 0;
+  return Math.max(0,newest.total-first.total);
 }
 
 function refreshCps(){
@@ -1243,13 +1366,13 @@ let localClicksTotal=num(localStorage.getItem("clicklaborate_raw")||0);
 
 function renderHome(){
   updateRoll(rollTarget);
-  updateSmallNumber("globalCps",currentCps);
+  updateRateNumber("globalCps",currentCps);
   updateSmallNumber("globalMinute",deriveMinute());
-  updateSmallNumber("yourCps",localCps());
+  updateRateNumber("yourCps",localCps());
   updateSmallNumber("yourMinute",localMinute());
-  updateSmallNumber("sideCps",localCps());
+  updateRateNumber("sideCps",localCps());
   updateSmallNumber("homeCombo",currentCombo());
-  updateSmallNumber("topCps",currentCps);
+  updateRateNumber("topCps",currentCps);
 }
 
 async function awardMilestones(){
@@ -1425,6 +1548,7 @@ function subscribe(){
     game={...game,...incoming,upgrades:{...(game.upgrades||{}),...(incoming.upgrades||{})}};
     rollTarget=num(game.globalClicks);
     lastKnownTotal=rollTarget;
+    recordGlobalSample();
     renderHome();renderStats();renderUpgrades();
   },e=>fail("game",e));
 
@@ -1470,6 +1594,9 @@ function subscribe(){
   onValue(ref(db,"youtube/source"),s=>{youtube={...youtube,...(s.val()||{})}},e=>fail("youtube/source",e));
 
   setInterval(()=>{if(queuedRaw>0&&!flushBusy)flushClicks()},1000);
+  // Sampling faster than the render loop keeps the CPS/min windows accurate
+  // even if the `game` node itself only pushes every second or so.
+  setInterval(recordGlobalSample,250);
   // Was a flat 1s tick for everything; dropping to 500ms makes the counters,
   // rate readouts, and chart feel live instead of visibly stepping once a
   // second, without hammering the client any harder (this is all local render
