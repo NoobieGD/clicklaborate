@@ -242,7 +242,7 @@ button:disabled{cursor:not-allowed;opacity:.42}
 </style>
 </head>
 <body>
-<div class="version-label" aria-hidden="true">v1.7</div>
+<div class="version-label" aria-hidden="true">v1.7.1</div>
 <div id="repoLock" class="repo-lock" aria-hidden="true"><div class="repo-lock-card"><div class="repo-lock-title">Outdated build</div><div id="repoLockText" class="repo-lock-text">This page is not the current repository build.</div><div id="repoLockBuild" class="repo-lock-build"></div></div></div>
 
 <div id="joinModal" class="modal show">
@@ -594,7 +594,7 @@ let fxRates={EUR:1};
 let fxLoadedAt=0;
 let appCheckReady=false;
 
-const APP_VERSION="1.7";
+const APP_VERSION="1.7.1";
 const GITHUB_RAW_INDEX_URL="https://raw.githubusercontent.com/NoobieGD/clicklaborate/main/index.html";
 let repoLocked=false;
 let repoCheckInFlight=null;
@@ -1359,7 +1359,7 @@ async function initPresence(){
   setInterval(()=>update(p,{name,uid,online:true,lastSeen:now()}),3000);
 }
 
-// YouTube polling is server-side in v1.7. The browser only reads /youtube/source and /superChats/events.
+// YouTube polling is server-side in v1.7.1. The browser only reads /youtube/source and /superChats/events.
 function youtubeRequest(){ throw new Error("YOUTUBE_SERVER_ONLY"); }
 
 function chatOrderValue(m){
@@ -1463,9 +1463,13 @@ function subscribe(){
   onValue(ref(db,"youtube/source"),s=>{youtube={...youtube,...(s.val()||{})}},e=>fail("youtube/source",e));
 
   setInterval(()=>{if(queuedRaw>0&&!flushBusy)flushClicks()},1000);
-  setInterval(()=>{renderHome();renderStats();renderSuperChats();drawChart()},1000);
+  // Was a flat 1s tick for everything; dropping to 500ms makes the counters,
+  // rate readouts, and chart feel live instead of visibly stepping once a
+  // second, without hammering the client any harder (this is all local render
+  // work, no extra network calls).
+  setInterval(()=>{renderHome();renderStats();renderSuperChats();drawChart()},500);
   setInterval(()=>updateSmallNumber("homeCombo",currentCombo()),100);
-    setInterval(()=>{renderProposal();renderUpgrades()},1000);
+    setInterval(()=>{renderProposal();renderUpgrades()},500);
   setInterval(()=>{if(!repoLocked)verifyRepoVersion(true)},60000);
 }
 
@@ -1536,7 +1540,7 @@ function showView(view){
   const home=view==="home";
   el("homeView").classList.toggle("active",home);
   el("statsView").classList.toggle("active",!home);
-  if(!home)drawChart();
+  if(!home){renderStats();drawChart();}
 }
 
 function openSidebar(){
