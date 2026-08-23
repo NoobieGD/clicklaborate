@@ -117,7 +117,11 @@ button:disabled{cursor:not-allowed;opacity:.42}
 .panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .panel h2{font-size:.98rem;margin:0}
 .panel-note{color:var(--muted);font-size:.73rem}
-.milestones{display:grid;gap:7px;margin-top:12px;max-height:420px;overflow:auto}
+.milestone-columns{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+.milestone-part{min-width:0}
+.milestone-part-title{font-size:.74rem;color:var(--muted);font-weight:800;margin:0 0 7px}
+.milestones{display:grid;gap:7px;max-height:420px;overflow:auto}
+@media(max-width:760px){.milestone-columns{grid-template-columns:1fr}}
 .milestone{
   display:grid;grid-template-columns:auto 1fr auto;gap:9px;align-items:center;
   border:1px solid var(--line);background:#0b0b0b;border-radius:12px;padding:9px 10px
@@ -231,12 +235,12 @@ button:disabled{cursor:not-allowed;opacity:.42}
 .menu-mobile{display:none}
 .chat-toggle{position:fixed;right:16px;top:16px;z-index:55}.chat-panel{position:fixed;right:16px;top:64px;width:min(390px,calc(100vw - 32px));background:#0b0b0b;border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);z-index:54;overflow:hidden;display:none}.chat-panel.show{display:block}.chat-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 13px;border-bottom:1px solid var(--line)}.chat-list{max-height:360px;overflow:auto;padding:10px}.chat-row{padding:9px 10px;background:#111;border:1px solid #1f1f1f;border-radius:10px;margin-bottom:7px}.chat-meta{font-size:.68rem;color:var(--muted);margin-bottom:3px}.chat-name{font-weight:800;color:#ddd}.chat-text{font-size:.8rem;line-height:1.4;word-break:break-word}.chat-compose{display:grid;grid-template-columns:1fr auto;gap:7px;padding:10px;border-top:1px solid var(--line)}@media(max-width:560px){.chat-toggle{right:10px;top:10px}.chat-panel{right:10px;top:56px;width:calc(100vw - 20px)}.chat-list{max-height:46vh}}
 
-\.version-label{position:fixed;right:10px;bottom:8px;z-index:20;font:500 11px/1 Roboto,Arial,sans-serif;color:#666;pointer-events:none}
+\.version-label{position:fixed;right:10px;bottom:8px;z-index:9999;font:500 11px/1 Roboto,Arial,sans-serif;color:#666;pointer-events:none;display:block;width:max-content;height:auto;margin:0;padding:0;line-height:1;box-sizing:border-box}
 @media(max-width:560px){.version-label{right:8px;bottom:6px;font-size:10px}}
 </style>
 </head>
 <body>
-<div class="version-label">v1.4.1</div>
+<div class="version-label" aria-hidden="true">v1.4.2</div>
 <div id="joinModal" class="modal show">
   <div class="modal-card">
     <h2>Join Clicklaborate</h2>
@@ -368,8 +372,17 @@ button:disabled{cursor:not-allowed;opacity:.42}
         </div>
 
         <div class="panel stats-block">
-          <div class="panel-head"><h2>Milestones</h2><div class="panel-note">first person to cross it</div></div>
-          <div id="statsMilestones" class="milestones"></div>
+          <div class="panel-head"><h2>Click milestones</h2><div class="panel-note">shared records</div></div>
+          <div class="milestone-columns">
+            <div class="milestone-part">
+              <div class="milestone-part-title">Global clicks</div>
+              <div id="statsGlobalMilestones" class="milestones"></div>
+            </div>
+            <div class="milestone-part">
+              <div class="milestone-part-title">Total generated clicks</div>
+              <div id="statsGeneratedMilestones" class="milestones"></div>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -430,7 +443,25 @@ const APP_CHECK_KEY="6LfNLpQtAAAAALEFeyBPQ0zXa99Xs5j94LSd2N5w";
 const CLICK_PER_CURRENCY_UNIT=1000;
 const VOTE_SECONDS=30;
 const POLLER_LEASE_MS=14000;
-const MILESTONES=[1,100,500,1000,5000,10000,25000,50000,100000,200000,500000,1000000,2000000,5000000,10000000];
+const GLOBAL_MILESTONES=[1,100,500,1000,5000,10000,25000,50000,100000,200000,500000,1000000,2000000,5000000,10000000];
+const GENERATED_MILESTONES=[1,2,5,10,20,50,100,200,500,1000,2000,5000,10000,20000,50000,100000,200000,500000,1000000,2000000,5000000,10000000,20000000,50000000,100000000,200000000,500000000,1000000000];
+const MILESTONES=[...new Set([...GLOBAL_MILESTONES,...GENERATED_MILESTONES])].sort((a,b)=>a-b);
+const MILESTONE_USERS={
+  1:"noobiegd",
+  100:"Duckywys",
+  500:"CALAMITY",
+  1000:"Mar",
+  5000:"Liam777",
+  10000:"ZoinkGMD",
+  25000:"clovis",
+  50000:"Liam777",
+  100000:"liamkowlesc1",
+  200000:"clovis",
+  500000:"liamkowlesc1",
+  1000000:"yuri is good",
+  2000000:"noobiegd",
+  5000000:"noobiegd"
+};
 
 const U=[
   ["clickPower","Strong Finger","Each click gives a bit more.",70000,2.72,"clickPower",1,"👍"],
@@ -478,6 +509,8 @@ let game={
 let presence={};
 let seconds=[];
 let milestones={};
+let milestonesGlobal={};
+let milestonesGenerated={};
 let proposal=null;
 let proposalCooldownUntil=0;
 let superChats={};
@@ -798,9 +831,9 @@ function localCps(){
 }
 
 
-function milestoneRows(){
-  return MILESTONES.map(n=>{
-    const row=milestones[n];
+function milestoneRows(source,list){
+  return list.map(n=>{
+    const row=source?.[n];
     return `<div class="milestone ${row?"reached":""}">
       <div class="ms-icon">${row?"✓":"•"}</div>
       <div class="ms-num">${fmt(n)}</div>
@@ -810,7 +843,40 @@ function milestoneRows(){
 }
 
 function renderMilestones(){
-  el("statsMilestones").innerHTML=milestoneRows();
+  const g=el("statsGlobalMilestones"),r=el("statsGeneratedMilestones");
+  if(g)g.innerHTML=milestoneRows(milestonesGlobal,GLOBAL_MILESTONES);
+  if(r)r.innerHTML=milestoneRows(milestonesGenerated,GENERATED_MILESTONES);
+}
+
+function milestoneBonusCount(){
+  const keys=new Set([...Object.keys(milestonesGlobal||{}),...Object.keys(milestonesGenerated||{})]);
+  return keys.size;
+}
+
+async function seedMilestones(){
+  if(!db)return;
+  const globalSeed={};
+  const generatedSeed={};
+  for(const n of GLOBAL_MILESTONES){
+    const who=MILESTONE_USERS[n];
+    if(who)globalSeed[n]={name:who,uid:"",at:0,seeded:true};
+  }
+  for(const n of GENERATED_MILESTONES){
+    const who=MILESTONE_USERS[n];
+    if(who)generatedSeed[n]={name:who,uid:"",at:0,seeded:true};
+  }
+  await Promise.all([
+    runTransaction(ref(db,"milestones/global"),cur=>{
+      cur=cur||{};
+      for(const [n,row] of Object.entries(globalSeed))if(!cur[n])cur[n]=row;
+      return cur;
+    }).catch(err=>console.error("[Clicklaborate Milestones] global seed failed",{code:err?.code,message:err?.message,error:err})),
+    runTransaction(ref(db,"milestones/generated"),cur=>{
+      cur=cur||{};
+      for(const [n,row] of Object.entries(generatedSeed))if(!cur[n])cur[n]=row;
+      return cur;
+    }).catch(err=>console.error("[Clicklaborate Milestones] generated seed failed",{code:err?.code,message:err?.message,error:err}))
+  ]);
 }
 
 function upgradeEffectText(d,level){
@@ -984,24 +1050,29 @@ function renderHome(){
   updateSmallNumber("topCps",currentCps);
 }
 
-async function awardMilestones(before,after){
-  for(const n of MILESTONES){
-    if(num(before)<n&&num(after)>=n){
-      await runTransaction(ref(db,`milestones/${n}`),cur=>cur?cur:{name,uid,at:now()}).catch(()=>{});
+async function awardMilestones(beforeGlobal,afterGlobal,beforeGenerated,afterGenerated){
+  const paths=[["global",beforeGlobal,afterGlobal,GLOBAL_MILESTONES],["generated",beforeGenerated,afterGenerated,GENERATED_MILESTONES]];
+  for(const [kind,before,after,list] of paths){
+    for(const n of list){
+      if(num(before)<n&&num(after)>=n){
+        await runTransaction(ref(db,`milestones/${kind}/${n}`),cur=>cur?cur:{name,uid,at:serverNow(),source:"reached"}).catch(err=>console.error(`[Clicklaborate Milestones] ${kind} award failed`,{code:err?.code,message:err?.message,error:err}));
+      }
     }
   }
 }
 
 async function generateClicks(amount,rawDelta=0){
   if(!db||!amount)return;
-  let beforeRaw=0,afterRaw=0;
+  let beforeGlobal=0,afterGlobal=0,beforeGenerated=0,afterGenerated=0;
   const tx=await runTransaction(ref(db,"game"),cur=>{
     cur=cur||{};
-    beforeRaw=num(cur.rawClicks);
-    afterRaw=beforeRaw+num(rawDelta);
-    cur.globalClicks=num(cur.globalClicks)+num(amount);
-    cur.totalGenerated=num(cur.totalGenerated)+num(amount);
-    cur.rawClicks=afterRaw;
+    beforeGlobal=num(cur.globalClicks);
+    beforeGenerated=num(cur.totalGenerated);
+    afterGlobal=beforeGlobal+num(amount);
+    afterGenerated=beforeGenerated+num(amount);
+    cur.globalClicks=afterGlobal;
+    cur.totalGenerated=afterGenerated;
+    cur.rawClicks=num(cur.rawClicks)+num(rawDelta);
     if(rawDelta>0)cur.rawGenerated=num(cur.rawGenerated)+num(amount);
     if(rawDelta>0){
       const active=(now()-num(cur.lastRawAt))<1000;
@@ -1011,7 +1082,7 @@ async function generateClicks(amount,rawDelta=0){
     return cur;
   });
   if(tx.committed){
-    if(rawDelta>0)awardMilestones(beforeRaw,afterRaw);
+    await awardMilestones(beforeGlobal,afterGlobal,beforeGenerated,afterGenerated);
     const currentSecond=serverSec();
     await runTransaction(ref(db,`seconds/${currentSecond}`),v=>{
       v=v||{};
@@ -1055,7 +1126,7 @@ async function flushClicks(){
   if(Math.random()<Math.min(.95,e.double))mult*=2;
   if(Math.random()<Math.min(.9,e.panic))mult*=8;
   mult*=1+e.burst;
-  if(num(Object.keys(milestones).length)>0)mult*=1+e.milestoneMult*num(Object.keys(milestones).length);
+  if(num(milestoneBonusCount())>0)mult*=1+e.milestoneMult*num(milestoneBonusCount());
   const generated=Math.max(raw,Math.round(raw*(1+e.clickPower+e.rawBoost+e.refund)*(1+e.sideways)*mult));
   try{
     await generateClicks(generated,raw);
@@ -1083,13 +1154,15 @@ let passiveAt=0;
 async function passiveTick(){
   if(!db)return;
   const nowMs=now();
-  let gained=0;
+  let gained=0,beforeGlobal=0,beforeGenerated=0,afterGlobal=0,afterGenerated=0;
   const e=effectData();
   await runTransaction(ref(db,"game"),cur=>{
     cur=cur||{};
     const prev=num(cur.lastTick)||nowMs;
     const elapsed=Math.max(0,Math.min((nowMs-prev)/1000,3600));
     if(elapsed<1)return cur;
+    beforeGlobal=num(cur.globalClicks);
+    beforeGenerated=num(cur.totalGenerated);
     const people=activeUsers();
     let rate=e.passive+e.passiveFlat;
     rate*=1+e.time*Math.min(60,elapsed);
@@ -1100,12 +1173,15 @@ async function passiveTick(){
     const scCount=Object.keys(superChats||{}).length;
     rate*=1+e.superchatBonus*scCount;
     gained=rate*elapsed;
-    cur.globalClicks=num(cur.globalClicks)+gained;
-    cur.totalGenerated=num(cur.totalGenerated)+gained;
+    afterGlobal=beforeGlobal+gained;
+    afterGenerated=beforeGenerated+gained;
+    cur.globalClicks=afterGlobal;
+    cur.totalGenerated=afterGenerated;
     cur.lastTick=nowMs;
     return cur;
   });
   if(gained>0){
+    await awardMilestones(beforeGlobal,afterGlobal,beforeGenerated,afterGenerated);
     const passiveSecond=serverSec();
     await runTransaction(ref(db,`seconds/${passiveSecond}`),v=>{
       v=v||{};
@@ -1345,14 +1421,20 @@ async function recordSuperChat(row){
       return cur;
     }).catch(()=>{});
     if(clicks>0){
+      let beforeGlobal=0,beforeGenerated=0,afterGlobal=0,afterGenerated=0;
       const addTx=await runTransaction(ref(db,"game"),cur=>{
         cur=cur||{};
-        cur.globalClicks=num(cur.globalClicks)+clicks;
-        cur.totalGenerated=num(cur.totalGenerated)+clicks;
+        beforeGlobal=num(cur.globalClicks);
+        beforeGenerated=num(cur.totalGenerated);
+        afterGlobal=beforeGlobal+clicks;
+        afterGenerated=beforeGenerated+clicks;
+        cur.globalClicks=afterGlobal;
+        cur.totalGenerated=afterGenerated;
         cur.supportClicks=num(cur.supportClicks)+clicks;
         return cur;
       });
       if(addTx.committed){
+        await awardMilestones(beforeGlobal,afterGlobal,beforeGenerated,afterGenerated);
         const supportSecond=serverSec();
         await runTransaction(ref(db,`seconds/${supportSecond}`),v=>{
           v=v||{};
@@ -1519,7 +1601,8 @@ function subscribe(){
     refreshCps();drawChart();
   },e=>fail("seconds",e));
 
-  onValue(ref(db,"milestones"),s=>{milestones=s.val()||{};renderMilestones()},e=>fail("milestones",e));
+  onValue(ref(db,"milestones/global"),s=>{milestonesGlobal=s.val()||{};renderMilestones()},e=>fail("milestones/global",e));
+  onValue(ref(db,"milestones/generated"),s=>{milestonesGenerated=s.val()||{};renderMilestones()},e=>fail("milestones/generated",e));
   onValue(ref(db,"proposal/current"),s=>{proposal=s.val();renderProposal()},e=>fail("proposal/current",e));
 
   const scRef=query(ref(db,"superChats/events"),orderByChild("at"),limitToLast(12));
@@ -1536,6 +1619,7 @@ function subscribe(){
   onValue(chatRef,s=>{chatMessages=s.val()||{};renderChat()},e=>fail("chat",e));
   onValue(ref(db,"youtube/source"),s=>{youtube={...youtube,...(s.val()||{})}},e=>fail("youtube/source",e));
 
+  seedMilestones();
   setInterval(()=>{if(queuedRaw>0)flushClicks()},250);
   setInterval(sampleGlobalSecond,1000);
   setInterval(()=>{renderHome();renderStats();renderSuperChats();drawChart()},1000);
