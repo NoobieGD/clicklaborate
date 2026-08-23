@@ -1251,7 +1251,7 @@ async function passiveTick(){
 
 function firebaseSafeKey(value){
   const s=String(value??"").trim();
-  return s.replace(/[.#$\\[\\]\\/]/g,"_").slice(0,120) || "unknown";
+  return Array.from(s, ch => ".#$[]/".includes(ch) ? "_" : ch).join("").slice(0,120) || "unknown";
 }
 
 async function proposeUpgrade(id){
