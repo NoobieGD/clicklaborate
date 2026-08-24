@@ -1062,36 +1062,24 @@ function globalDeltaOverWindow(windowMs){
 }
 
 function deriveCps(){
-  // Prefer the server's authoritative per-second bucket. The old client-side
-  // sampler could get stuck at the size of the latest game write batch (for
-  // example, permanently showing 3 CPS) when the game node updated in bursts.
-  const serverValue=deriveCpsFromSecondsNode();
-  if(serverValue>0)return serverValue;
-
-  // Only fall back to elapsed-time sampling when the server bucket is not
-  // available yet.
-  if(globalClickSamples.length<2)return 0;
+  if(globalClickSamples.length<2)return deriveCpsFromSecondsNode();
   const newest=globalClickSamples[globalClickSamples.length-1];
   const targetAt=newest.at-1000;
   const base=globalSampleAtOrBefore(targetAt) || globalClickSamples[0];
   const elapsed=(newest.at-base.at)/1000;
-  if(elapsed<=0)return 0;
+  if(elapsed<=0)return deriveCpsFromSecondsNode();
   return Math.max(0,newest.total-base.total)/elapsed;
 }
 
 function deriveMinute(){
-  // Keep clicks/minute based on the same authoritative one-second buckets as
-  // the graph. This makes the value track the actual shared activity rather
-  // than a single client experiencing a stale game snapshot.
-  const serverValue=deriveMinuteFromSecondsNode();
-  if(serverValue>0)return serverValue;
-
-  if(globalClickSamples.length<2)return 0;
+  if(globalClickSamples.length<2)return deriveMinuteFromSecondsNode();
   const newest=globalClickSamples[globalClickSamples.length-1];
   const targetAt=newest.at-60000;
   const base=globalSampleAtOrBefore(targetAt);
   if(base)return Math.max(0,newest.total-base.total);
   const first=globalClickSamples[0];
+  const elapsed=(newest.at-first.at)/1000;
+  if(elapsed<=0)return 0;
   return Math.max(0,newest.total-first.total);
 }
 
@@ -1574,26 +1562,16 @@ function subscribe(){
   onChildChanged(presenceRef,s=>applyPresence(s),e=>fail("presence",e));
   onChildRemoved(presenceRef,s=>applyPresence(s,true),e=>fail("presence",e));
 
-  // Read the leaderboard root directly and sort locally. The previous
-  // orderByChild()+limitToLast() queries depend on database indexes; when an
-  // index is missing/stale the listener can stop delivering fresh leaderboard
-  // data entirely.
-  onValue(ref(db,"leaderboard/users"),s=>{
-    const users=s.val()||{};
-    leaderboardContributors=users;
-    leaderboardCps=users;
-    renderLeaderboards();
-  },e=>fail("leaderboard/users",e));
+  const contributorRef=query(ref(db,"leaderboard/users"),orderByChild("totalClicks"),limitToLast(10));
+  onValue(contributorRef,s=>{leaderboardContributors=s.val()||{};renderLeaderboards()},e=>fail("leaderboard/users",e));
+  const cpsBoardRef=query(ref(db,"leaderboard/users"),orderByChild("cps"),limitToLast(10));
+  onValue(cpsBoardRef,s=>{leaderboardCps=s.val()||{};renderLeaderboards()},e=>fail("leaderboard/cps",e));
 
-  // The seconds keys are already chronological, so limitToLast(60) avoids the
-  // orderByChild("at") index requirement while still receiving the newest 60
-  // buckets and keeping the graph/rates live.
-  const secondsRef=query(ref(db,"seconds"),limitToLast(60));
+  const secondsRef=query(ref(db,"seconds"),orderByChild("at"),limitToLast(60));
   onValue(secondsRef,s=>{
     const v=s.val()||{};
     seconds=Object.entries(v).map(([second,x])=>({second,...(x||{}),at:num(x?.at)||num(second)})).sort((a,b)=>num(a.second)-num(b.second));
-    refreshCps();
-    drawChart();
+    refreshCps();drawChart();
   },e=>fail("seconds",e));
 
   onValue(ref(db,"milestones/global"),s=>{milestonesGlobal=s.val()||{};renderMilestones()},e=>fail("milestones/global",e));
@@ -1619,7 +1597,6 @@ function subscribe(){
   // Sampling faster than the render loop keeps the CPS/min windows accurate
   // even if the `game` node itself only pushes every second or so.
   setInterval(recordGlobalSample,250);
-  setInterval(refreshCps,500);
   // Was a flat 1s tick for everything; dropping to 500ms makes the counters,
   // rate readouts, and chart feel live instead of visibly stepping once a
   // second, without hammering the client any harder (this is all local render
