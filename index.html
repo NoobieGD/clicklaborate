@@ -49,6 +49,20 @@ button:disabled{cursor:not-allowed;opacity:.42}
 .sub{font-size:.78rem;line-height:1.45;color:var(--muted);margin-top:4px}
 .online-line{display:flex;align-items:center;gap:8px}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--good);flex:none}
+.online-presence{position:relative;width:max-content;max-width:100%}
+.online-trigger{appearance:none;border:0;background:transparent;color:inherit;padding:0;text-align:left;cursor:default}
+.online-trigger:focus-visible{outline:2px solid #666;outline-offset:5px;border-radius:4px}
+.online-users-popover{
+  position:absolute;left:0;top:calc(100% + 8px);z-index:75;width:min(330px,calc(100vw - 40px));
+  max-height:260px;overflow:auto;padding:8px;border:1px solid #383838;border-radius:12px;
+  background:#0b0b0b;box-shadow:var(--shadow);opacity:0;visibility:hidden;transform:translateY(-5px);
+  transition:opacity 150ms ease,transform 150ms ease,visibility 150ms ease
+}
+.online-presence:hover .online-users-popover,.online-presence:focus-within .online-users-popover{opacity:1;visibility:visible;transform:translateY(0)}
+.online-user{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:8px;border-radius:8px}
+.online-user:nth-child(odd){background:#111}
+.online-user-name{font-size:.77rem;font-weight:750;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.online-user-uid{font:500 .64rem/1.3 "Roboto",Arial,sans-serif;color:var(--muted);max-width:145px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sidebar-actions{display:grid;gap:8px;margin-bottom:18px}
 .btn{
   appearance:none;border:1px solid var(--line);background:var(--panel2);color:var(--text);
@@ -234,7 +248,26 @@ button:disabled{cursor:not-allowed;opacity:.42}
   .vote-actions .btn{flex:1}
 }
 .menu-mobile{display:none}
-.chat-toggle{position:fixed;right:16px;top:16px;z-index:55}.chat-panel{position:fixed;right:16px;top:64px;width:min(390px,calc(100vw - 32px));background:#0b0b0b;border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);z-index:54;overflow:hidden;display:none}.chat-panel.show{display:block}.chat-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 13px;border-bottom:1px solid var(--line)}.chat-list{max-height:360px;overflow:auto;padding:10px}.chat-row{padding:9px 10px;background:#111;border:1px solid #1f1f1f;border-radius:10px;margin-bottom:7px}.chat-meta{font-size:.68rem;color:var(--muted);margin-bottom:3px}.chat-name{font-weight:800;color:#ddd}.chat-text{font-size:.8rem;line-height:1.4;word-break:break-word}.chat-compose{display:grid;grid-template-columns:1fr auto;gap:7px;padding:10px;border-top:1px solid var(--line)}@media(max-width:560px){.chat-toggle{right:10px;top:10px}.chat-panel{right:10px;top:56px;width:calc(100vw - 20px)}.chat-list{max-height:46vh}}
+.chat-toggle{position:fixed;right:16px;top:16px;z-index:55}
+.chat-panel{position:fixed;right:16px;top:64px;width:min(420px,calc(100vw - 32px));background:#0b0b0b;border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);z-index:54;overflow:hidden;display:none}
+.chat-panel.show{display:block}
+.chat-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 13px;border-bottom:1px solid var(--line)}
+.kick-vote{display:none;padding:10px 12px;border-bottom:1px solid var(--line);background:#0d0d0d}
+.kick-vote.show{display:block}
+.kick-title{font-size:.8rem;font-weight:800}
+.kick-sub{font-size:.7rem;color:var(--muted);line-height:1.4;margin-top:3px}
+.kick-meter{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:8px}
+.kick-choice{border:1px solid var(--line);border-radius:9px;padding:7px 8px;font:800 .74rem/1 "Roboto",Arial,sans-serif}
+.kick-choice.yes{background:#173020;color:#94e5aa}.kick-choice.no{background:#351919;color:#ef9d9d}
+.kick-actions{display:flex;justify-content:flex-end;gap:6px;margin-top:8px}
+.chat-list{max-height:360px;overflow:auto;padding:10px}
+.chat-row{position:relative;padding:9px 38px 9px 10px;background:#111;border:1px solid #1f1f1f;border-radius:10px;margin-bottom:7px}
+.chat-meta{font-size:.68rem;color:var(--muted);margin-bottom:3px}.chat-name{font-weight:800;color:#ddd}.chat-text{font-size:.8rem;line-height:1.4;word-break:break-word}
+.chat-flag{position:absolute;right:6px;top:6px;width:27px;height:27px;border:1px solid transparent;border-radius:8px;background:transparent;color:#777;display:grid;place-items:center;padding:0;font-size:.8rem;opacity:.55}
+.chat-row:hover .chat-flag,.chat-flag:focus-visible{opacity:1;border-color:#333;background:#181818;color:#ddd}
+.chat-compose{display:grid;grid-template-columns:1fr auto;gap:7px;padding:10px;border-top:1px solid var(--line)}
+.chat-status{display:none;padding:8px 10px;border-top:1px solid var(--line);color:var(--warn);font-size:.72rem;line-height:1.4}.chat-status.show{display:block}
+@media(max-width:560px){.chat-toggle{right:10px;top:10px}.chat-panel{right:10px;top:56px;width:calc(100vw - 20px)}.chat-list{max-height:46vh}}
 
 .repo-lock{position:fixed;inset:0;z-index:10000;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(8,8,8,.98);color:var(--text);text-align:center}.repo-lock.show{display:flex}.repo-lock-card{width:min(520px,100%);border:1px solid var(--line);background:#0b0b0b;border-radius:18px;padding:24px;box-shadow:var(--shadow)}.repo-lock-title{font-weight:850;font-size:1.15rem;margin-bottom:8px}.repo-lock-text{color:var(--muted);font-size:.82rem;line-height:1.55}.repo-lock-build{font-family:"Roboto",Arial,sans-serif;margin-top:12px;font-size:.78rem;color:#d6d6d6}
 .version-label{position:fixed;right:10px;bottom:8px;z-index:9999;font:500 11px/1 Roboto,Arial,sans-serif;color:#666;pointer-events:none;display:block;width:max-content;height:auto;margin:0;padding:0;line-height:1;box-sizing:border-box}
@@ -242,7 +275,7 @@ button:disabled{cursor:not-allowed;opacity:.42}
 </style>
 </head>
 <body>
-<div class="version-label" aria-hidden="true">v1.7.3</div>
+<div class="version-label" aria-hidden="true">v1.7.4</div>
 <div id="repoLock" class="repo-lock" aria-hidden="true"><div class="repo-lock-card"><div class="repo-lock-title">Outdated build</div><div id="repoLockText" class="repo-lock-text">This page is not the current repository build.</div><div id="repoLockBuild" class="repo-lock-build"></div></div></div>
 
 <div id="joinModal" class="modal show">
@@ -270,8 +303,13 @@ button:disabled{cursor:not-allowed;opacity:.42}
     </div>
 
     <div class="side-block">
-      <div class="label">Online</div>
-      <div class="online-line"><span class="dot"></span><span id="sideOnline" class="value">0</span></div>
+      <div class="online-presence">
+        <button class="online-trigger" type="button" aria-describedby="onlineUsersPopover">
+          <div class="label">Online · hover for users</div>
+          <div class="online-line"><span class="dot"></span><span id="sideOnline" class="value">0</span></div>
+        </button>
+        <div id="onlineUsersPopover" class="online-users-popover" role="tooltip"><div class="sc-empty">Nobody is online yet.</div></div>
+      </div>
       <div class="sub">3 online are needed to start an upgrade vote.</div>
     </div>
 
@@ -360,7 +398,7 @@ button:disabled{cursor:not-allowed;opacity:.42}
           <div class="stat"><div id="statSessionPeakTime" class="stat-v">—</div><div class="stat-l">Session peak time</div></div>
           <div class="stat"><div id="statOnline" class="stat-v">0</div><div class="stat-l">Online now</div></div>
           <div class="stat"><div id="statUpgradeCount" class="stat-v">0</div><div class="stat-l">Upgrade levels</div></div>
-          <div class="stat"><div id="statScRevenue" class="stat-v">€0.00</div><div class="stat-l">Global support revenue</div></div>
+          <div class="stat"><div id="statScRevenue" class="stat-v">€0.00</div><div class="stat-l">EUR support revenue</div></div>
           <div class="stat"><div id="statScCount" class="stat-v">0</div><div class="stat-l">Support events</div></div>
           <div class="stat"><div id="statClicksPerClick" class="stat-v">1.00</div><div class="stat-l">Clicks / click</div></div>
           <div class="stat"><div id="statSupportClicks" class="stat-v">0</div><div class="stat-l">Support clicks</div></div>
@@ -414,7 +452,14 @@ button:disabled{cursor:not-allowed;opacity:.42}
 
 <div id="chatPanel" class="chat-panel">
   <div class="chat-head"><strong>Chat</strong><button id="chatClose" class="btn small">Close</button></div>
+  <div id="kickVotePanel" class="kick-vote">
+    <div id="kickVoteTitle" class="kick-title">Votekick</div>
+    <div id="kickVoteSub" class="kick-sub">—</div>
+    <div class="kick-meter"><div id="kickYesCount" class="kick-choice yes">Yes 0</div><div id="kickNoCount" class="kick-choice no">No 0</div></div>
+    <div class="kick-actions"><button id="kickVoteYes" class="btn small">Yes</button><button id="kickVoteNo" class="btn small">No</button></div>
+  </div>
   <div id="chatList" class="chat-list"></div>
+  <div id="chatStatus" class="chat-status"></div>
   <div class="chat-compose"><input id="chatInput" class="input" maxlength="180" placeholder="Say something"><button id="chatSend" class="btn small primary">Send</button></div>
 </div>
 
@@ -462,11 +507,9 @@ const firebaseConfig={
   appId:"1:154237870577:web:aa5f24145d00e9c8502450"
 };
 
-const YOUTUBE_API_KEY=""; // server-side only // YouTube polling must be server-side.
+// The YouTube API key is a Cloud Functions secret. Never expose it in this file.
 const APP_CHECK_KEY="6LfNLpQtAAAAALEFeyBPQ0zXa99Xs5j94LSd2N5w";
-const CLICK_PER_CURRENCY_UNIT=1000;
-const VOTE_SECONDS=30;
-const POLLER_LEASE_MS=14000;
+const EFFECT_LEVEL_GROWTH=0.10;
 const GLOBAL_MILESTONES=[1,100,500,1000,5000,10000,25000,50000,100000,200000,500000,1000000,2000000,5000000,10000000];
 const RAW_MILESTONES=Array.from({length:34},(_,i)=>[1,2,5,10][i%4]*10**Math.floor(i/4)).filter(x=>x<=1e9);
 const GENERATED_MILESTONES=[1,2,5,10,20,50,100,200,500,1000,2000,5000,10000,20000,50000,100000,200000,500000,1000000,2000000,5000000,10000000,20000000,50000000,100000000,200000000,500000000,1000000000];
@@ -515,7 +558,7 @@ const U=[
   ["sharedBattery", "Shared Charge", "Teammates slightly improve each click.", 268246, 2.65, "group", 0.0016, "🔋"],
   ["lateShift", "Tunnel Vision", "Long sessions sharpen active clicking.", 1294869, 2.68, "time", 0.0007, "🌙"],
   ["theThing", "Chaos Button", "A rare stack of click-focused effects.", 390660, 2.71, "final", 0.35, "🌀"],
-  ["votePower", "Rally Cry", "Makes your upgrade vote carry more weight.", 471445, 2.74, "vote", 0.004, "🗳️"],
+  ["votePower", "Rally Cry", "Makes Yes votes in upgrade proposals carry more weight.", 471445, 2.74, "vote", 0.004, "🗳️"],
   ["precision", "Precision Strike", "Reduces wasted potential in each batch.", 568936, 2.77, "clickPower", 1, "🎯"],
   ["snap", "Snap Reflex", "Improves rapid-fire click bursts.", 686588, 2.80, "heat", 0.0024, "🫰"],
   ["overcharge", "Overcharge", "Raises the ceiling of burst multipliers.", 828570, 2.83, "burst", 0.01, "🔋"],
@@ -551,6 +594,11 @@ let fnClick=null;
 let fnPropose=null;
 let fnVote=null;
 let fnChat=null;
+let fnResolveProposal=null;
+let fnReportMessage=null;
+let fnKickVote=null;
+let fnResolveKickVote=null;
+let fnSyncSuperChats=null;
 let uid="";
 let playerUid=localStorage.getItem("clicklaborate_player_uid")||(crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random().toString(16).slice(2)}`);
 localStorage.setItem("clicklaborate_player_uid",playerUid);
@@ -562,7 +610,6 @@ let game={
 };
 let presence={};
 let leaderboardContributors={};
-let leaderboardCps={};
 let seconds=[];
 let milestones={};
 let milestonesGlobal={};
@@ -572,10 +619,8 @@ let proposal=null;
 let proposalCooldownUntil=0;
 let superChats={};
 let chatMessages={};
-let chatCooldownUntil=Number(localStorage.getItem("clicklaborate_chat_cooldown")||0);
-let chatLastSentAt=Number(localStorage.getItem("clicklaborate_chat_last_sent")||0);
-let chatSentTimes=JSON.parse(localStorage.getItem("clicklaborate_chat_sent_times")||"[]");
-if(!Array.isArray(chatSentTimes))chatSentTimes=[];
+let kickVote=null;
+let myMute=null;
 let youtube={streamUrl:"",liveChatId:"",pageToken:"",pollerLease:0,lastPoll:0};
 let localClicks=[];
 let localContribution=[];
@@ -592,11 +637,11 @@ let currentCps=0;
 let sessionPeakCps=0;
 let sessionPeakCpsAt=0;
 let sessionStart=Date.now();
-let fxRates={EUR:1};
-let fxLoadedAt=0;
 let appCheckReady=false;
+let youtubeSyncBusy=false;
+let youtubeSyncTimer=0;
 
-const APP_VERSION="1.7.3";
+const APP_VERSION="1.7.4";
 const GITHUB_RAW_INDEX_URL="https://raw.githubusercontent.com/NoobieGD/clicklaborate/main/index.html";
 let repoLocked=false;
 let repoCheckInFlight=null;
@@ -667,8 +712,8 @@ async function verifyRepoVersion(force=false){
           show the outdated-build popup.
         - remote === local => current build, do nothing.
         - remote < local  => GitHub/raw is behind this page, so do nothing.
-          This prevents cases such as local 1.7.3 being incorrectly flagged
-          because the website temporarily reports 1.7.1.
+          This prevents cases such as local 1.7.4 being incorrectly flagged
+          because the website temporarily reports 1.7.2.
       */
       if(compareVersions(remoteVersion,localVersion)>0){
         lockForRepoMismatch(remoteVersion);
@@ -711,7 +756,12 @@ async function apiRequest(path,payload={}){
     "/api/click":fnClick,
     "/api/proposals":fnPropose,
     "/api/vote":fnVote,
-    "/api/chat":fnChat
+    "/api/resolve-proposal":fnResolveProposal,
+    "/api/chat":fnChat,
+    "/api/report-message":fnReportMessage,
+    "/api/kick-vote":fnKickVote,
+    "/api/resolve-kick-vote":fnResolveKickVote,
+    "/api/sync-superchats":fnSyncSuperChats
   };
   const fn=map[path];
   if(!fn)throw new Error(`Unknown backend endpoint: ${path}`);
@@ -744,9 +794,26 @@ function escapeText(v){
   return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
 }
 
+function safeImageUrl(v){
+  try{const u=new URL(String(v||""),location.href);return u.protocol==="https:"?u.href:""}catch(_){return ""}
+}
+
 function activeUsers(){
-  const t=now();
-  return Object.values(presence).filter(v=>v&&v.online&&t-num(v.lastSeen)<8000).length;
+  return activePresenceEntries().length;
+}
+
+function activePresenceEntries(){
+  const t=serverNow();
+  return Object.values(presence)
+    .filter(v=>v&&v.online&&t-num(v.lastSeen)<10000)
+    .sort((a,b)=>String(a.name||"").localeCompare(String(b.name||"")));
+}
+
+function renderOnlineUsers(){
+  const node=el("onlineUsersPopover");
+  if(!node)return;
+  const rows=activePresenceEntries();
+  node.innerHTML=rows.map(row=>`<div class="online-user"><div class="online-user-name">${escapeText(row.name||"Anonymous")}</div><div class="online-user-uid" title="${escapeText(row.uid||"")}">${escapeText(row.uid||"unknown")}</div></div>`).join("")||'<div class="sc-empty">Nobody is online yet.</div>';
 }
 
 function effectData(){
@@ -761,9 +828,21 @@ function effectData(){
     const lv=num(game.upgrades?.[d[0]]),k=d[5],a=num(d[6]);
     if(!lv)continue;
     if(!(k in e))continue;
-    e[k]+=lv*a;
+    e[k]+=progressiveUpgradeAmount(a,lv);
   }
   return e;
+}
+
+function progressiveUpgradeAmount(base,level){
+  const lv=Math.max(0,num(level));
+  if(!lv)return 0;
+  // Each additional level is slightly stronger than the previous one. This is
+  // active-click power only: it never creates passive gain.
+  return num(base)*lv*(1+EFFECT_LEVEL_GROWTH*Math.max(0,lv-1));
+}
+
+function nextUpgradeGain(base,level){
+  return progressiveUpgradeAmount(base,num(level)+1)-progressiveUpgradeAmount(base,level);
 }
 
 function upgradeCost(id,level){ return authoritativeUpgradeCost(id,level); }
@@ -976,16 +1055,14 @@ function secondMap(){
   return map;
 }
 
-// Anchor "now" to the newest second the server has actually reported, rather than
-// the local device clock. Local clock skew (even a couple seconds) used to make
-// deriveCps() look up a bucket that was never written, silently showing 0.
 function latestKnownSecond(){
-  if(!seconds.length)return serverSec();
+  return serverSec();
+}
+
+function secondsAreLive(maxAge=2){
+  if(!seconds.length)return false;
   const newest=num(seconds[seconds.length-1].second);
-  const t=serverSec();
-  // If our clock is roughly in sync, prefer the real current second so the very
-  // latest tick isn't skipped; otherwise fall back to whatever the server last sent.
-  return Math.abs(t-newest)<=2?t:newest;
+  return newest>=serverSec()-maxAge&&newest<=serverSec()+1;
 }
 
 function latestSeconds(){
@@ -1014,8 +1091,8 @@ function recentCpsSeconds(){
 // for the brief window before we've collected enough local samples below.
 function deriveCpsFromSecondsNode(){
   const map=secondMap();
-  const t=latestKnownSecond();
-  for(let i=0;i<=2;i++){
+  const t=serverSec();
+  for(let i=0;i<=1;i++){
     const v=map.get(t-i);
     if(v!=null)return num(v);
   }
@@ -1061,8 +1138,29 @@ function globalDeltaOverWindow(windowMs){
   return Math.max(0,newest.total-base.total);
 }
 
+function leaderboardUserCps(row,currentSecond=serverSec()){
+  if(!row||typeof row!=="object")return 0;
+  const bucket=num(row.cpsSecond)||Math.floor(num(row.lastActive)/1000);
+  if(!bucket||bucket>currentSecond+1||currentSecond-bucket>1)return 0;
+  return Math.max(0,num(row.cps));
+}
+
+function liveLeaderboardCps(){
+  const rows=Object.values(leaderboardContributors||{}).filter(x=>x&&typeof x==="object");
+  const t=serverSec();
+  const fresh=rows.filter(x=>{
+    const bucket=num(x.cpsSecond)||Math.floor(num(x.lastActive)/1000);
+    return bucket>0&&bucket<=t+1&&t-bucket<=1;
+  });
+  if(!fresh.length)return null;
+  return fresh.reduce((sum,row)=>sum+leaderboardUserCps(row,t),0);
+}
+
 function deriveCps(){
-  if(globalClickSamples.length<2)return deriveCpsFromSecondsNode();
+  if(secondsAreLive())return deriveCpsFromSecondsNode();
+  const board=liveLeaderboardCps();
+  if(board!==null)return board;
+  if(globalClickSamples.length<2)return 0;
   const newest=globalClickSamples[globalClickSamples.length-1];
   const targetAt=newest.at-1000;
   const base=globalSampleAtOrBefore(targetAt) || globalClickSamples[0];
@@ -1072,7 +1170,8 @@ function deriveCps(){
 }
 
 function deriveMinute(){
-  if(globalClickSamples.length<2)return deriveMinuteFromSecondsNode();
+  if(secondsAreLive())return deriveMinuteFromSecondsNode();
+  if(globalClickSamples.length<2)return 0;
   const newest=globalClickSamples[globalClickSamples.length-1];
   const targetAt=newest.at-60000;
   const base=globalSampleAtOrBefore(targetAt);
@@ -1085,34 +1184,13 @@ function deriveMinute(){
 
 function refreshCps(){
   currentCps=deriveCps();
+  if(currentCps>sessionPeakCps){sessionPeakCps=currentCps;sessionPeakCpsAt=serverSec()}
   renderHome();
   renderStats();
 }
 
 function donorClicksTotal(){
-  return Object.values(superChats||{}).reduce((a,x)=>a+num(x.clicks),0);
-}
-
-async function loadFx(){
-  if(now()-fxLoadedAt<3600000)return fxRates;
-  try{
-    const r=await fetch("https://api.frankfurter.dev/v2/rates?base=EUR");
-    if(!r.ok)throw new Error("fx");
-    const rows=await r.json();
-    const next={EUR:1};
-    for(const row of rows||[]){
-      if(row?.quote&&num(row.rate)>0)next[row.quote]=num(row.rate);
-    }
-    fxRates=next;
-    fxLoadedAt=now();
-  }catch(_){ }
-  return fxRates;
-}
-
-function euroValue(amount,currency){
-  if(!currency||currency==="EUR")return num(amount);
-  const rate=num(fxRates[currency]);
-  return rate>0?num(amount)/rate:num(amount);
+  return num(game.supportClicks)||Object.values(superChats||{}).reduce((a,x)=>a+num(x.clicks),0);
 }
 
 function pruneLocalContribution(){
@@ -1176,29 +1254,29 @@ async function seedMilestones(){
 }
 
 function upgradeEffectText(d,level){
-  const k=d[5],a=num(d[6]),next=level+1;
+  const k=d[5],gain=nextUpgradeGain(num(d[6]),level);
   const pct=v=>(v*100).toFixed(2).replace(/\.00$/,"");
-  if(k==="clickPower")return `+${fmt(a*next)} clicks per click`;
-  if(k==="crit")return `+${pct(a*next)}% chance to crit (2×)`;
-  if(k==="combo"||k==="chain")return `+${pct(a*next)}% click power per 3 combo`;
-  if(k==="group"||k==="crowd"||k==="sharedBattery")return `+${pct(a*next)}% output per active player`;
-  if(k==="rawBoost"||k==="clickMult")return `+${pct(a*next)}% click output`;
-  if(k==="double")return `+${pct(a*next)}% chance to double a click`;
-  if(k==="refund")return `+${pct(a*next)}% bonus output per batch`;
-  if(k==="heat")return `+${pct(a*next)}% rapid-click bonus`;
-  if(k==="burst")return `+${pct(a*next)}% burst output when a burst triggers`;
-  if(k==="vote")return `+${pct(a*next)}% vote weight`;
-  if(k==="backspace")return `+${pct(a*next)}% comeback bonus after a combo reset`;
-  if(k==="milestoneMult")return `+${pct(a*next)}% output per reached milestone`;
-  if(k==="sideways")return `+${pct(a*next)}% copied output`;
-  if(k==="idleBurst")return `+${pct(a*next)}% return-from-pause bonus`;
-  if(k==="superchatBonus")return `+${pct(a*next)}% output per recent Super Chat`;
-  if(k==="globalMult")return `+${pct(a*next)}% global click output`;
-  if(k==="panic")return `+${pct(a*next)}% chance for an 8× surge`;
-  if(k==="time"||k==="uptime")return `+${pct(a*next)}% output per active minute`;
-  if(k==="lastResort")return `+${pct(a*next)}% emergency output`;
-  if(k==="final")return `+${pct(a*next)}% final output`;
-  return `+${fmt(a*next)}`;
+  if(k==="clickPower")return `Next level: +${gain.toFixed(2).replace(/\.00$/,"")} clicks per click`;
+  if(k==="crit")return `Next level: +${pct(gain)}% chance to crit (2×)`;
+  if(k==="combo"||k==="chain")return `Next level: +${pct(gain)}% power per 3 combo`;
+  if(k==="group"||k==="crowd"||k==="sharedBattery")return `Next level: +${pct(gain)}% per active player`;
+  if(k==="rawBoost"||k==="clickMult")return `Next level: +${pct(gain)}% click output`;
+  if(k==="double")return `Next level: +${pct(gain)}% double-click chance`;
+  if(k==="refund")return `Next level: +${pct(gain)}% batch output`;
+  if(k==="heat")return `Next level: +${pct(gain)}% rapid-click bonus`;
+  if(k==="burst")return `Next level: +${pct(gain)}% burst output`;
+  if(k==="vote")return `Next level: +${pct(gain)}% Yes-vote weight`;
+  if(k==="backspace")return `Next level: +${pct(gain)}% comeback bonus`;
+  if(k==="milestoneMult")return `Next level: +${pct(gain)}% per milestone`;
+  if(k==="sideways")return `Next level: +${pct(gain)}% copied output`;
+  if(k==="idleBurst")return `Next level: +${pct(gain)}% return bonus`;
+  if(k==="superchatBonus")return `Next level: +${pct(gain)}% per recent Super Chat`;
+  if(k==="globalMult")return `Next level: +${pct(gain)}% global click output`;
+  if(k==="panic")return `Next level: +${pct(gain)}% 8× surge chance`;
+  if(k==="time"||k==="uptime")return `Next level: +${pct(gain)}% per active minute`;
+  if(k==="lastResort")return `Next level: +${pct(gain)}% emergency output`;
+  if(k==="final")return `Next level: +${pct(gain)}% final output`;
+  return `Next level: +${gain.toFixed(2)}`;
 }
 
 function renderUpgrades(){
@@ -1222,7 +1300,7 @@ function renderUpgrades(){
 
 function proposalStateText(p){
   if(!p)return "";
-  const expires=Math.max(0,Math.ceil((num(p.endsAt)-now())/1000));
+  const expires=Math.max(0,Math.ceil((num(p.endsAt)-serverNow())/1000));
   const votes=num(p.yes)+num(p.no);
   return `${votes} vote${votes===1?"":"s"} · ${expires}s left`;
 }
@@ -1235,11 +1313,8 @@ function renderProposal(){
   const box=el("proposal");
   const live=proposalIsLive(proposal);
   if(!live){
-    // Hide immediately once the timer runs out, even if the server hasn't
-    // gotten around to flipping `active` to false yet, so stale votes don't
-    // linger on screen forever.
     box.classList.remove("show");
-    if(proposal&&proposal.endsAt&&num(proposal.endsAt)<=now())proposal=null;
+    if(proposal?.active!==false&&num(proposal?.endsAt)>0&&num(proposal.endsAt)<=serverNow())finishProposal();
     return;
   }
   box.classList.add("show");
@@ -1276,27 +1351,29 @@ function renderSuperChats(){
   // that capped window, which raced with the summary listener and made the
   // displayed revenue/count randomly snap to the wrong (too low) number.
   const rows=Object.values(superChats||{}).sort((a,b)=>num(b.at)-num(a.at)).slice(0,12);
+  const emptyMessage=youtube?.error?`YouTube sync: ${escapeText(youtube.error)}`:(youtube?.streamUrl?"No support events on this live chat yet.":"Set youtube/source/streamUrl in Firebase.");
   const list=rows.map(r=>{
     const bg=superColor(r.tier,r.type);
     let message=r.message||"";
+    const amountText=r.type==="membership"?`${fmt(r.memberships)} gifted`:(r.amountDisplay||money(r.amount,r.currency));
     if(r.type==="sticker"&&!message)message="Super Sticker";
     if(r.type==="membership"&&!message)message=`Gifted ${fmt(r.memberships)} membership${num(r.memberships)===1?"":"s"}`;
     return `<div class="sc-card" style="background:${bg}">
       <div class="sc-top">
-        <div class="sc-user"><img class="sc-pfp" src="${escapeText(r.pfp||"")}" alt=""><div class="sc-username">${escapeText(r.name||"Anonymous")}</div></div>
-        <div class="sc-money">${escapeText(r.amountDisplay||money(r.amount,r.currency))}</div>
+        <div class="sc-user"><img class="sc-pfp" src="${escapeText(safeImageUrl(r.pfp))}" alt=""><div class="sc-username">${escapeText(r.name||"Anonymous")}</div></div>
+        <div class="sc-money">${escapeText(amountText)}</div>
       </div>
       <div class="sc-message">${escapeText(message)}</div>
       <div class="sc-bottom"><span>${fmt(r.clicks)} clicks</span></div>
     </div>`;
-  }).join("")||'<div class="sc-empty">Nothing yet.</div>';
+  }).join("")||`<div class="sc-empty">${emptyMessage}</div>`;
   el("recentSuperChats").innerHTML=list;
   el("statsSuperChats").innerHTML=list;
 }
 
 function currentCombo(){
   const lastRaw=num(game.lastRawAt);
-  if(!lastRaw||now()-lastRaw>=1000)return 0;
+  if(!lastRaw||serverNow()-lastRaw>=1000)return 0;
   return Math.max(0,num(game.combo));
 }
 
@@ -1329,15 +1406,16 @@ function peakTimeText(ts){
 
 function renderLeaderboards(){
   const contrib=Object.values(leaderboardContributors||{}).filter(x=>x&&typeof x==='object').sort((a,b)=>num(b.totalClicks)-num(a.totalClicks)).slice(0,10);
-  const cps=Object.values(leaderboardCps||{}).filter(x=>x&&typeof x==='object').sort((a,b)=>num(b.cps)-num(a.cps)||num(b.lastActive)-num(a.lastActive)).slice(0,10);
+  const cps=Object.values(leaderboardContributors||{}).filter(x=>x&&typeof x==='object').map(x=>({...x,currentCps:leaderboardUserCps(x)})).filter(x=>x.currentCps>0).sort((a,b)=>num(b.currentCps)-num(a.currentCps)||num(b.lastActive)-num(a.lastActive)).slice(0,10);
   const contribEl=el("leaderboardContributors");
   const cpsEl=el("leaderboardCps");
   if(contribEl)contribEl.innerHTML=contrib.map((x,i)=>`<div class="milestone"><div class="ms-icon">${i+1}</div><div><div class="ms-num">${escapeText(x.name||"Anonymous")}</div><div class="ms-who">${fmt(x.totalClicks)} clicks contributed</div></div><div class="ms-who">${i<3?['🥇','🥈','🥉'][i]:''}</div></div>`).join("")||'<div class="sc-empty">No contributors yet.</div>';
-  if(cpsEl)cpsEl.innerHTML=cps.map((x,i)=>`<div class="milestone"><div class="ms-icon">${i+1}</div><div><div class="ms-num">${escapeText(x.name||"Anonymous")}</div><div class="ms-who">${fmt(x.cps)} CPS current</div></div><div class="ms-who">${i<3?['🥇','🥈','🥉'][i]:''}</div></div>`).join("")||'<div class="sc-empty">No CPS data yet.</div>';
+  if(cpsEl)cpsEl.innerHTML=cps.map((x,i)=>`<div class="milestone"><div class="ms-icon">${i+1}</div><div><div class="ms-num">${escapeText(x.name||"Anonymous")}</div><div class="ms-who">${fmt(x.currentCps)} CPS current</div></div><div class="ms-who">${i<3?['🥇','🥈','🥉'][i]:''}</div></div>`).join("")||'<div class="sc-empty">No one is clicking this second.</div>';
 }
 
 function renderStats(){
   renderLeaderboards();
+  renderOnlineUsers();
   updateSmallNumber("statGlobal",game.globalClicks);
   updateSmallNumber("statGenerated",game.totalGenerated);
   updateSmallNumber("statCps",currentCps);
@@ -1384,11 +1462,10 @@ async function generateClicks(rawDelta=0){
   return apiRequest("/api/click",{rawClicks:Math.max(1,Math.floor(num(rawDelta)))});
 }
 
-// A 60ms debounce meant every fast click burst turned into a flood of separate
-// backend calls, which is exactly what was tripping the server's per-user rate
-// limit and getting individual clicks rejected. Coalescing into a wider window
-// means far fewer, larger requests for the same amount of clicking.
-const CLICK_FLUSH_MS=220;
+// Batch rapid taps into about five server calls per second. The backend applies
+// a 60 raw-clicks/second token bucket, so fast legitimate clicking is accepted
+// without turning every physical click into a network request.
+const CLICK_FLUSH_MS=180;
 
 function queueClick(){
   queuedRaw++;
@@ -1402,8 +1479,10 @@ function queueClick(){
 async function flushClicks(){
   if(flushBusy||queuedRaw<=0||!(auth&&auth.currentUser))return;
   flushBusy=true;
-  const raw=queuedRaw;
-  queuedRaw=0;
+  // Keep each request within the server's 60-click payload cap. Any overflow
+  // remains queued and is sent in the following token-bucket window.
+  const raw=Math.min(60,queuedRaw);
+  queuedRaw-=raw;
   try{
     const result=await generateClicks(raw);
     if(result&&result.generated!=null){
@@ -1425,6 +1504,7 @@ async function flushClicks(){
     clickRetryDelay=Math.min(clickRetryDelay*2,30000);
   }finally{
     flushBusy=false;
+    if(queuedRaw>0)setTimeout(flushClicks,60);
   }
 }
 
@@ -1448,7 +1528,7 @@ function proposalIsLive(p){
   // and its timer hasn't run out yet.
   if(!p)return false;
   if(p.active===false)return false;
-  if(p.endsAt&&num(p.endsAt)<=now())return false;
+  if(p.endsAt&&num(p.endsAt)<=serverNow())return false;
   return true;
 }
 
@@ -1478,23 +1558,66 @@ async function castVote(choice){
 
 let finishingProposal=false;
 async function finishProposal(){
-  // trusted backend resolves expired proposals
+  if(finishingProposal||!proposal||proposal.active===false||num(proposal.endsAt)>serverNow())return;
+  finishingProposal=true;
+  try{
+    const result=await apiRequest("/api/resolve-proposal",{proposalId:proposal.id||""});
+    if(result?.proposal)proposal=result.proposal;
+    renderProposal();renderUpgrades();
+  }catch(err){
+    console.error("[Clicklaborate API] proposal resolution failed",err);
+  }finally{finishingProposal=false}
 }
 
 async function initPresence(){
   const p=ref(db,`presence/${firebaseSafeKey(uid)}`);
-  const data={name,uid,online:true,lastSeen:now()};
+  const data={name,uid,online:true,joinedAt:serverTimestamp(),lastSeen:serverTimestamp()};
   await set(p,data);
   onDisconnect(p).update({online:false,lastSeen:serverTimestamp()});
-  setInterval(()=>update(p,{name,uid,online:true,lastSeen:now()}),3000);
+  setInterval(()=>update(p,{name,uid,online:true,lastSeen:serverTimestamp()}),3000);
 }
 
-// YouTube polling is server-side in v1.7.3. The browser only reads /youtube/source and /superChats/events.
-function youtubeRequest(){ throw new Error("YOUTUBE_SERVER_ONLY"); }
+async function syncSuperChats(){
+  if(youtubeSyncBusy||!fnSyncSuperChats||!auth?.currentUser)return;
+  if(num(youtube?.nextPollAt)>serverNow()+250)return;
+  youtubeSyncBusy=true;
+  try{
+    const result=await apiRequest("/api/sync-superchats",{});
+    if(result?.source)youtube={...youtube,...result.source};
+  }catch(err){
+    // A backend lease or YouTube polling interval can reject duplicate callers;
+    // that is expected when many users are online.
+    if(!["functions/resource-exhausted","functions/failed-precondition"].includes(err?.code))console.error("[Clicklaborate YouTube] sync failed",err);
+  }finally{youtubeSyncBusy=false}
+}
+
+function scheduleSuperChatSync(delay=250){
+  clearTimeout(youtubeSyncTimer);
+  youtubeSyncTimer=setTimeout(syncSuperChats,Math.max(0,delay));
+}
 
 function chatOrderValue(m){
   const stamp=num(m.serverAt||m.at);
   return stamp>0?stamp:0;
+}
+
+function myMuteState(){
+  if(!myMute)return {active:false,text:""};
+  if(myMute.permanent)return {active:true,text:"You are permanently muted after repeated successful votekicks."};
+  const remaining=num(myMute.until)-serverNow();
+  if(remaining<=0)return {active:false,text:""};
+  const seconds=Math.ceil(remaining/1000);
+  const text=seconds<60?`${seconds}s`:seconds<3600?`${Math.ceil(seconds/60)}m`:`${Math.ceil(seconds/3600)}h`;
+  return {active:true,text:`You are muted by community vote for ${text} more.`};
+}
+
+function renderChatComposer(){
+  const state=myMuteState();
+  const input=el("chatInput"),send=el("chatSend"),status=el("chatStatus");
+  input.disabled=state.active;send.disabled=state.active;
+  input.placeholder=state.active?"Muted by community vote":"Say something";
+  status.textContent=state.text;
+  status.classList.toggle("show",state.active);
 }
 
 function renderChat(){
@@ -1509,10 +1632,13 @@ function renderChat(){
   const visible=rows.slice(-200);
   el("chatList").innerHTML=visible.map(m=>{
     const stamp=chatOrderValue(m)||now();
-    return `<div class="chat-row"><div class="chat-meta"><span class="chat-name">${escapeText(m.name||"Anonymous")}</span> · ${new Date(stamp).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</div><div class="chat-text">${escapeText(m.text||"")}</div></div>`;
+    const canFlag=m.uid&&m.uid!==uid;
+    return `<div class="chat-row"><div class="chat-meta"><span class="chat-name">${escapeText(m.name||"Anonymous")}</span> · ${new Date(stamp).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</div><div class="chat-text">${escapeText(m.text||"")}</div>${canFlag?`<button class="chat-flag" data-report-message="${escapeText(m.key)}" aria-label="Start a 30-second votekick for ${escapeText(m.name||"this user")}" title="Start votekick">⚑</button>`:""}</div>`;
   }).join("") || '<div class="sc-empty">No messages yet.</div>';
+  document.querySelectorAll("[data-report-message]").forEach(button=>button.onclick=()=>reportMessage(button.dataset.reportMessage));
   const list=el("chatList");
   list.scrollTop=list.scrollHeight;
+  renderChatComposer();
 }
 
 async function trimChat(){
@@ -1522,7 +1648,74 @@ async function trimChat(){
 async function sendChat(){
   const input=el("chatInput");const text=String(input.value||"").trim();
   if(!text)return;if(text.length>180){toast("Message is too long.");return;}
+  if(myMuteState().active){toast(myMuteState().text);return;}
   try{await apiRequest("/api/chat",{text});input.value="";}catch(err){console.error("[Clicklaborate API] chat failed",err);toast(err?.message||"Chat failed.");}
+}
+
+function kickVoteIsLive(v){
+  return !!(v&&v.active!==false&&num(v.endsAt)>serverNow());
+}
+
+function kickVoteStateText(v){
+  if(!v)return "";
+  const left=Math.max(0,Math.ceil((num(v.endsAt)-serverNow())/1000));
+  return `${left}s left · a tie means no action`;
+}
+
+let kickVoteInFlight=false;
+let resolvingKickVote=false;
+function renderKickVote(){
+  const panel=el("kickVotePanel");
+  if(!kickVote){panel.classList.remove("show");return;}
+  const live=kickVoteIsLive(kickVote);
+  const recentlyResolved=kickVote.active===false&&serverNow()-num(kickVote.resolvedAt)<12000;
+  panel.classList.toggle("show",live||recentlyResolved);
+  if(!(live||recentlyResolved))return;
+  el("kickYesCount").textContent=`Yes ${fmt(kickVote.yes)}`;
+  el("kickNoCount").textContent=`No ${fmt(kickVote.no)}`;
+  if(live){
+    el("kickVoteTitle").textContent=`Mute ${kickVote.targetName||"this user"}?`;
+    el("kickVoteSub").textContent=`Community votekick · ${kickVoteStateText(kickVote)}`;
+  }else{
+    const passed=kickVote.verdict==="muted";
+    el("kickVoteTitle").textContent=passed?`${kickVote.targetName||"User"} was muted`:"Votekick ended with no action";
+    el("kickVoteSub").textContent=passed?(kickVote.durationLabel||"The next mute level was applied."):"The vote tied or No received at least as many votes.";
+  }
+  const voted=!!kickVote.voters?.[firebaseSafeKey(uid)];
+  el("kickVoteYes").disabled=!live||voted||kickVoteInFlight;
+  el("kickVoteNo").disabled=!live||voted||kickVoteInFlight;
+  if(!live&&kickVote.active!==false)finishKickVote();
+}
+
+async function reportMessage(messageId){
+  if(kickVoteIsLive(kickVote)){toast("A votekick is already running.");return;}
+  try{
+    const result=await apiRequest("/api/report-message",{messageId});
+    if(result?.kickVote)kickVote=result.kickVote;
+    renderKickVote();
+    el("chatPanel").classList.add("show");
+    toast("30-second votekick started.");
+  }catch(err){console.error("[Clicklaborate API] report failed",err);toast(err?.message||"Could not start votekick.")}
+}
+
+async function castKickVote(choice){
+  if(kickVoteInFlight||!kickVoteIsLive(kickVote)||!["yes","no"].includes(choice))return;
+  kickVoteInFlight=true;renderKickVote();
+  try{
+    const result=await apiRequest("/api/kick-vote",{choice,voteId:kickVote.id||""});
+    if(result?.kickVote)kickVote=result.kickVote;
+  }catch(err){console.error("[Clicklaborate API] kick vote failed",err);toast(err?.message||"Vote failed.")}
+  finally{kickVoteInFlight=false;renderKickVote()}
+}
+
+async function finishKickVote(){
+  if(resolvingKickVote||!kickVote||kickVote.active===false||num(kickVote.endsAt)>serverNow())return;
+  resolvingKickVote=true;
+  try{
+    const result=await apiRequest("/api/resolve-kick-vote",{voteId:kickVote.id||""});
+    if(result?.kickVote)kickVote=result.kickVote;
+  }catch(err){console.error("[Clicklaborate API] kick-vote resolution failed",err)}
+  finally{resolvingKickVote=false;renderKickVote()}
 }
 
 let syncStarted=false;
@@ -1541,6 +1734,9 @@ function subscribe(){
   onValue(ref(db,".info/serverTimeOffset"),s=>{
     serverTimeOffset=num(s.val());
   },e=>fail(".info/serverTimeOffset",e));
+  onValue(ref(db,".info/connected"),s=>{
+    el("connectionText").textContent=s.val()?"Connected":"Reconnecting";
+  },e=>fail(".info/connected",e));
 
   onValue(ref(db,"game"),s=>{
     const incoming=s.val();
@@ -1556,18 +1752,22 @@ function subscribe(){
   const applyPresence=(snap,removeIt=false)=>{
     if(removeIt)delete presence[snap.key];
     else presence[snap.key]=snap.val()||{};
-    renderHome();renderStats();renderUpgrades();
+    renderOnlineUsers();renderHome();renderStats();renderUpgrades();
   };
   onChildAdded(presenceRef,s=>applyPresence(s),e=>fail("presence",e));
   onChildChanged(presenceRef,s=>applyPresence(s),e=>fail("presence",e));
   onChildRemoved(presenceRef,s=>applyPresence(s,true),e=>fail("presence",e));
 
-  const contributorRef=query(ref(db,"leaderboard/users"),orderByChild("totalClicks"),limitToLast(10));
-  onValue(contributorRef,s=>{leaderboardContributors=s.val()||{};renderLeaderboards()},e=>fail("leaderboard/users",e));
-  const cpsBoardRef=query(ref(db,"leaderboard/users"),orderByChild("cps"),limitToLast(10));
-  onValue(cpsBoardRef,s=>{leaderboardCps=s.val()||{};renderLeaderboards()},e=>fail("leaderboard/cps",e));
+  // Read one small leaderboard node and rank it locally. The previous pair of
+  // indexed queries could fail independently, leaving one or both boards blank.
+  onValue(ref(db,"leaderboard/users"),s=>{
+    leaderboardContributors=s.val()||{};
+    refreshCps();renderLeaderboards();
+  },e=>fail("leaderboard/users",e));
 
-  const secondsRef=query(ref(db,"seconds"),orderByChild("at"),limitToLast(60));
+  // Second keys are fixed-width Unix seconds, so key order is chronological and
+  // does not need a fragile orderByChild/index combination.
+  const secondsRef=query(ref(db,"seconds"),limitToLast(60));
   onValue(secondsRef,s=>{
     const v=s.val()||{};
     seconds=Object.entries(v).map(([second,x])=>({second,...(x||{}),at:num(x?.at)||num(second)})).sort((a,b)=>num(a.second)-num(b.second));
@@ -1585,13 +1785,15 @@ function subscribe(){
     const v=s.val()||{};
     const rev=el("statScRevenue");
     const count=el("statScCount");
-    if(rev)rev.textContent=`€${num(v.revenue).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+    if(rev)rev.textContent=`€${num(v.revenueEur??v.revenue).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
     if(count)count.textContent=fmt(v.count);
   },e=>fail("superChats/summary",e));
 
   const chatRef=query(ref(db,"chat"),orderByChild("at"),limitToLast(200));
   onValue(chatRef,s=>{chatMessages=s.val()||{};renderChat()},e=>fail("chat",e));
-  onValue(ref(db,"youtube/source"),s=>{youtube={...youtube,...(s.val()||{})}},e=>fail("youtube/source",e));
+  onValue(ref(db,"moderation/kickVote/current"),s=>{kickVote=s.val();renderKickVote()},e=>fail("moderation/kickVote/current",e));
+  onValue(ref(db,`moderation/mutes/${firebaseSafeKey(uid)}`),s=>{myMute=s.val();renderChatComposer()},e=>fail("moderation/mutes/me",e));
+  onValue(ref(db,"youtube/source"),s=>{youtube={streamUrl:"",liveChatId:"",pageToken:"",...(s.val()||{})};scheduleSuperChatSync()},e=>fail("youtube/source",e));
 
   setInterval(()=>{if(queuedRaw>0&&!flushBusy)flushClicks()},1000);
   // Sampling faster than the render loop keeps the CPS/min windows accurate
@@ -1601,9 +1803,11 @@ function subscribe(){
   // rate readouts, and chart feel live instead of visibly stepping once a
   // second, without hammering the client any harder (this is all local render
   // work, no extra network calls).
-  setInterval(()=>{renderHome();renderStats();renderSuperChats();drawChart()},500);
+  setInterval(()=>{refreshCps();renderSuperChats();renderKickVote();renderChatComposer();drawChart()},500);
   setInterval(()=>updateSmallNumber("homeCombo",currentCombo()),100);
-    setInterval(()=>{renderProposal();renderUpgrades()},500);
+  setInterval(()=>{renderProposal();renderUpgrades();finishProposal();finishKickVote()},500);
+  setInterval(syncSuperChats,5000);
+  scheduleSuperChatSync();
   setInterval(()=>{if(!repoLocked)verifyRepoVersion(true)},60000);
 }
 
@@ -1736,7 +1940,12 @@ async function start(){
     fnClick=httpsCallable(functions,"click");
     fnPropose=httpsCallable(functions,"proposeUpgrade");
     fnVote=httpsCallable(functions,"vote");
+    fnResolveProposal=httpsCallable(functions,"resolveProposal");
     fnChat=httpsCallable(functions,"sendChat");
+    fnReportMessage=httpsCallable(functions,"reportMessage");
+    fnKickVote=httpsCallable(functions,"voteKick");
+    fnResolveKickVote=httpsCallable(functions,"resolveKickVote");
+    fnSyncSuperChats=httpsCallable(functions,"syncSuperChats");
     auth=getAuth(app);
     try{
       try{await setPersistence(auth,browserLocalPersistence);}catch(persistErr){
@@ -1816,6 +2025,8 @@ el("chatToggle").onclick=()=>el("chatPanel").classList.toggle("show");
 el("chatClose").onclick=()=>el("chatPanel").classList.remove("show");
 el("chatSend").onclick=sendChat;
 el("chatInput").addEventListener("keydown",e=>{if(e.key==="Enter")sendChat()});
+el("kickVoteYes").onclick=()=>castKickVote("yes");
+el("kickVoteNo").onclick=()=>castKickVote("no");
 
 window.addEventListener("keydown",e=>{
   const tag=document.activeElement?.tagName;
@@ -1827,7 +2038,7 @@ window.addEventListener("keydown",e=>{
 });
 
 window.addEventListener("beforeunload",()=>{
-  if(db)set(ref(db,`presence/${firebaseSafeKey(uid)}`),{name,uid,online:false,lastSeen:now()}).catch(()=>{});
+  if(db)update(ref(db,`presence/${firebaseSafeKey(uid)}`),{online:false,lastSeen:serverTimestamp()}).catch(()=>{});
 });
 
 el("nameInput").value=name||"";
