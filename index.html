@@ -275,7 +275,7 @@ button:disabled{cursor:not-allowed;opacity:.42}
 </style>
 </head>
 <body>
-<div class="version-label" aria-hidden="true">v1.7.6-fix</div>
+<div class="version-label" aria-hidden="true">v1.7.7</div>
 <div id="repoLock" class="repo-lock" aria-hidden="true"><div class="repo-lock-card"><div class="repo-lock-title">Outdated build</div><div id="repoLockText" class="repo-lock-text">This page is not the current repository build.</div><div id="repoLockBuild" class="repo-lock-build"></div></div></div>
 
 <div id="joinModal" class="modal show">
@@ -641,7 +641,7 @@ let appCheckReady=false;
 let youtubeSyncBusy=false;
 let youtubeSyncTimer=0;
 
-const APP_VERSION="1.7.6-fix";
+const APP_VERSION="1.7.7";
 const GITHUB_RAW_INDEX_URL="https://raw.githubusercontent.com/NoobieGD/clicklaborate/main/index.html";
 let repoLocked=false;
 let repoCheckInFlight=null;
@@ -1541,20 +1541,128 @@ async function castVote(choice){
     if(proposal&&!proposalIsLive(proposal))toast("That vote has ended.");
     return;
   }
+
   voteInFlight=true;
   el("voteYes").disabled=true;
   el("voteNo").disabled=true;
+
+  const voteKey=firebaseSafeKey(uid);
+  const originalProposalId=String(proposal.id||proposal.key||"");
+  const originalUpgradeId=proposal.upgradeId;
+  const originalEndsAt=proposal.endsAt;
+
   try{
-    const payload={choice,upgradeId:proposal.upgradeId,proposalId:proposal.id||proposal.key||proposal.upgradeId,endsAt:proposal.endsAt};
-    const r=await apiRequest("/api/vote",payload);
-    if(r?.proposal)proposal=r.proposal;
-    renderProposal();
-  }catch(err){
-    console.error("[Clicklaborate API] vote failed",err);
-    toast(err?.message||"Vote failed.");
-    renderProposal();
+    const submitVote=async current=>{
+      const currentId=String(current?.id||current?.key||"");
+      if(!current||!currentId)return {kind:"unavailable"};
+      if(currentId!==originalProposalId)return {kind:"stale"};
+      if(current.active===false||num(current.endsAt)<=serverNow())return {kind:"ended",proposal:current};
+      if(current.voters?.[voteKey])return {kind:"already",proposal:current};
+
+      const payload={
+        choice,
+        upgradeId:current.upgradeId||originalUpgradeId,
+        proposalId:currentId,
+        endsAt:current.endsAt||originalEndsAt
+      };
+
+      try{
+        const result=await apiRequest("/api/vote",payload);
+        return {kind:"success",proposal:result?.proposal||current};
+      }catch(err){
+        return {kind:"error",error:err,current};
+      }
+    };
+
+    let result=await submitVote(proposal);
+
+    if(result.kind==="success"){
+      proposal=result.proposal;
+      renderProposal();
+      return;
+    }
+
+    if(result.kind==="already"){
+      proposal=result.proposal;
+      renderProposal();
+      return;
+    }
+
+    if(result.kind==="ended"){
+      proposal=result.proposal;
+      renderProposal();
+      toast("That vote has ended.");
+      return;
+    }
+
+    if(result.kind==="stale"){
+      const latestSnap=await get(ref(db,"proposal/current"));
+      const latest=latestSnap.val();
+      if(latest){proposal=latest;renderProposal();}
+      toast("That proposal is no longer current.");
+      return;
+    }
+
+    if(result.kind==="error"){
+      const message=String(result.error?.message||"").toLowerCase();
+      const code=String(result.error?.code||"").toLowerCase();
+      const isContention=
+        message.includes("vote changed while voting") ||
+        message.includes("proposal is no longer current") ||
+        code.includes("aborted");
+
+      if(isContention){
+        const latestSnap=await get(ref(db,"proposal/current"));
+        const latest=latestSnap.val();
+
+        if(!latest){
+          proposal=null;
+          renderProposal();
+          toast("The vote is no longer available.");
+          return;
+        }
+
+        proposal=latest;
+        renderProposal();
+
+        // The first request may have succeeded server-side even if the client
+        // received an aborted/contended response. Never submit twice if our
+        // voter entry is already present.
+        if(latest.voters?.[voteKey]){
+          return;
+        }
+
+        if(
+          String(latest.id||"")===originalProposalId &&
+          latest.active===true &&
+          num(latest.endsAt)>serverNow()
+        ){
+          const retry=await submitVote(latest);
+          if(retry.kind==="success"||retry.kind==="already"){
+            proposal=retry.proposal;
+            renderProposal();
+            return;
+          }
+          if(retry.kind==="ended"){
+            proposal=retry.proposal;
+            renderProposal();
+            toast("That vote has ended.");
+            return;
+          }
+        }
+
+        // Hide the backend's transaction-race message from users. The latest
+        // proposal is already rendered, so they can see the real state.
+        return;
+      }
+
+      console.error("[Clicklaborate API] vote failed",result.error);
+      toast(result.error?.message||"Vote failed.");
+      renderProposal();
+    }
   }finally{
     voteInFlight=false;
+    renderProposal();
   }
 }
 
