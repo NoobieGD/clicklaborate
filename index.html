@@ -275,7 +275,7 @@ button:disabled{cursor:not-allowed;opacity:.42}
 </style>
 </head>
 <body>
-<div class="version-label" aria-hidden="true">v1.7.5</div>
+<div class="version-label" aria-hidden="true">v1.7.6</div>
 <div id="repoLock" class="repo-lock" aria-hidden="true"><div class="repo-lock-card"><div class="repo-lock-title">Outdated build</div><div id="repoLockText" class="repo-lock-text">This page is not the current repository build.</div><div id="repoLockBuild" class="repo-lock-build"></div></div></div>
 
 <div id="joinModal" class="modal show">
@@ -641,7 +641,7 @@ let appCheckReady=false;
 let youtubeSyncBusy=false;
 let youtubeSyncTimer=0;
 
-const APP_VERSION="1.7.5";
+const APP_VERSION="1.7.6";
 const GITHUB_RAW_INDEX_URL="https://raw.githubusercontent.com/NoobieGD/clicklaborate/main/index.html";
 let repoLocked=false;
 let repoCheckInFlight=null;
@@ -1329,10 +1329,12 @@ function renderProposal(){
   el("noFill").style.width=`${noPct}%`;
   el("yesCount").textContent=String(yes);
   el("noCount").textContent=String(no);
-  const voteKey=firebaseSafeKey(uid);
-  const voted=!!proposal.voters?.[voteKey];
+  const voteKey=uid || firebaseSafeKey(uid);
+  const voters=proposal.voters || {};
+  const voted=Object.prototype.hasOwnProperty.call(voters,voteKey) || Object.prototype.hasOwnProperty.call(voters,firebaseSafeKey(uid));
   const voteText=proposalStateText(proposal);
-  el("voteInfo").textContent=voted?`You voted ${proposal.voters[voteKey]}. ${voteText}`:`Voting open · ${voteText}`;
+  const previousVote=voters[voteKey] || voters[firebaseSafeKey(uid)];
+  el("voteInfo").textContent=voted?`You voted ${previousVote}. ${voteText}`:`Voting open · ${voteText}`;
   el("voteYes").disabled=voted||voteInFlight;
   el("voteNo").disabled=voted||voteInFlight;
 }
@@ -1535,24 +1537,37 @@ function proposalIsLive(p){
 let voteInFlight=false;
 async function castVote(choice){
   if(voteInFlight)return;
-  if(!["yes","no"].includes(choice)||!proposalIsLive(proposal)){
-    if(proposal&&!proposalIsLive(proposal))toast("That vote has ended.");
+  if(!["yes","no"].includes(choice))return;
+  if(!proposal||proposal.active===false){toast("There is no open vote.");return;}
+  if(num(proposal.endsAt)>0&&num(proposal.endsAt)<=serverNow()){
+    await finishProposal();
+    toast("That vote has just ended.");
+    return;
+  }
+  const voters=proposal.voters||{};
+  if(Object.prototype.hasOwnProperty.call(voters,uid)||Object.prototype.hasOwnProperty.call(voters,firebaseSafeKey(uid))){
+    toast("You already voted on this proposal.");
     return;
   }
   voteInFlight=true;
   el("voteYes").disabled=true;
   el("voteNo").disabled=true;
   try{
-    const payload={choice,upgradeId:proposal.upgradeId,proposalId:proposal.id||proposal.key||proposal.upgradeId,endsAt:proposal.endsAt};
+    const payload={
+      choice,
+      proposalId:String(proposal.id||proposal.key||""),
+      upgradeId:String(proposal.upgradeId||"")
+    };
     const r=await apiRequest("/api/vote",payload);
     if(r?.proposal)proposal=r.proposal;
     renderProposal();
   }catch(err){
     console.error("[Clicklaborate API] vote failed",err);
     toast(err?.message||"Vote failed.");
-    renderProposal();
+    await get(ref(db,"proposal/current")).then(snap=>{proposal=snap.val();renderProposal();}).catch(()=>{});
   }finally{
     voteInFlight=false;
+    renderProposal();
   }
 }
 
